@@ -1,36 +1,47 @@
 var oldData;
 var ws;
 var connected = false;
+var reconnect;
 
 function open()
 {
-    var url = "ws://127.0.0.1:8974/";
-    ws = new WebSocket(url);
-    ws.onopen = onOpen;
-    ws.onclose = onClose;
-    ws.onmessage = onMessage;
-    ws.onerror = onError;
+    try {
+        var url = "ws://127.0.0.1:8974/";
+        ws = new WebSocket(url);
+        ws.onopen = onOpen;
+        ws.onclose = onClose;
+        ws.onmessage = onMessage;
+        ws.onerror = onError;
 
-    console.log("Opening websocket");
+        console.log("Opening websocket");
+    }
+    catch (error)
+    {
+        console.log("Error:" + error);
+    }
 }
 
 var onOpen = function() {
     console.log("Opened websocket");
     connected = true;
+    clearTimeout(reconnect);
     dataCheck();
 };
 
 var onClose = function() {
     console.log("Closed websocket");
     connected = false;
+    reconnect = setTimeout(function(){ open(); }, 1000);
 };
 
 var onMessage = function(event) {
-    console.log("Message received" + event.data);
+    console.log("Message received:" + event.data);
 };
 
 var onError = function(event) {
-    alert(event.data);
+    if(typeof event.data != 'undefined') {
+        console.log("Websocket Error:" + event.data);
+    }
 };
 
 function dataCheck()
@@ -39,15 +50,17 @@ function dataCheck()
     {
         if(document.getElementsByClassName("song-row currently-playing")[0].innerHTML != oldData)
         {
-          oldData = document.getElementsByClassName("song-row currently-playing")[0].innerHTML;
+            oldData = document.getElementsByClassName("song-row currently-playing")[0].innerHTML;
 
-          ws.send(oldData);
+            if(connected) {
+                ws.send(oldData);
+            }
         }
-        setTimeout(dataCheck, 5000);
+        setTimeout(dataCheck, 500);
     }
     catch(err)
     {
-        setTimeout(dataCheck, 10000);
+        setTimeout(dataCheck, 1000);
     }
 }
 
