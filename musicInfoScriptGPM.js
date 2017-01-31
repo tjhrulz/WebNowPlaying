@@ -31,7 +31,7 @@ var onOpen = function() {
 var onClose = function() {
     console.log("Closed websocket");
     connected = false;
-    reconnect = setTimeout(function(){ open(); }, 1000);
+    reconnect = setTimeout(function(){ open(); }, 5000);
 };
 
 var onMessage = function(event) {
@@ -48,12 +48,38 @@ function dataCheck()
 {
     try
     {
-        if(document.getElementsByClassName("song-row currently-playing")[0].innerHTML != oldData)
+        //Contains both the title and the album art
+
+        newData = document.getElementsByClassName("song-row currently-playing")[0].innerHTML
+        if(newData != oldData)
         {
-            oldData = document.getElementsByClassName("song-row currently-playing")[0].innerHTML;
+            oldData = newData;
+
+            title = document.getElementById("currently-playing-title").title;
+            artist = document.getElementById("player-artist").innerHTML;
+            album = document.getElementsByClassName("player-album")[0].innerHTML;
+            //Only contains album art thumbnail not full sized
+            albumArt =  document.getElementById("playerBarArt").src;
+
+            position = document.getElementById("time_container_current").innerHTML;
+            duration =  document.getElementById("time_container_duration").innerHTML;
+
+            liked = document.getElementsByClassName("rating-container materialThumbs")[0].children[0].title;
+            disliked = document.getElementsByClassName("rating-container materialThumbs")[0].children[1].title;
+
+            //Note this may get info right when using podcasts
+            //.children[0 & 6].title is back 30 seconds and forward 30 seconds
+            //.children[2 & 4].title are previous and next
+            repeat = document.getElementsByClassName("material-player-middle")[0].children[1].title;
+            shuffle = document.getElementsByClassName("material-player-middle")[0].children[5].title;
+            status = document.getElementsByClassName("material-player-middle")[0].children[3].title;
 
             if(connected) {
-                ws.send(oldData);
+                ws.send(title);
+                ws.send(artist);
+                ws.send(album);
+                ws.send(status);
+
             }
         }
         setTimeout(dataCheck, 500);
