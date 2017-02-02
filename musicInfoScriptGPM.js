@@ -1,4 +1,5 @@
-var oldData;
+var oldTitle;
+var oldPos;
 var ws;
 var connected = false;
 var reconnect;
@@ -50,19 +51,23 @@ function dataCheck()
     {
         //Contains both the title and the album art
 
-        newData = document.getElementsByClassName("song-row currently-playing")[0].innerHTML
-        if(newData != oldData)
-        {
-            oldData = newData;
+        newTitle = document.getElementById("currently-playing-title").title;
+        newPos = document.getElementById("time_container_current").innerHTML;
 
-            title = document.getElementById("currently-playing-title").title;
+
+        if(newTitle != oldTitle || newPos != oldPos)
+        {
+            oldTitle = newTitle;
+            oldPos = newPos;
+
+            title = newTitle;
             artist = document.getElementById("player-artist").innerHTML;
             album = document.getElementsByClassName("player-album")[0].innerHTML;
             //Only contains album art thumbnail not full sized
             albumArt =  document.getElementById("playerBarArt").src;
 
-            position = document.getElementById("time_container_current").innerHTML;
-            duration =  document.getElementById("time_container_duration").innerHTML;
+            position = newPos;
+            duration = document.getElementById("time_container_duration").innerHTML;
 
             liked = document.getElementsByClassName("rating-container materialThumbs")[0].children[0].title;
             disliked = document.getElementsByClassName("rating-container materialThumbs")[0].children[1].title;

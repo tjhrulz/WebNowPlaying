@@ -1,4 +1,5 @@
-var oldData;
+var oldTitle;
+var oldPos;
 var ws;
 var connected = false;
 var reconnect;
@@ -50,18 +51,21 @@ function dataCheck()
     {
         //Contains both the title and the album art
 
-        newData = document.getElementsByClassName("playbackTimeline__timePassed")[0].children[1].innerHTML;
-        if(newData != oldData)
-        {
-            oldData = newData;
+        newPos = document.getElementsByClassName("playbackTimeline__timePassed")[0].children[1].innerHTML;
+        newTitle = document.getElementsByClassName("playbackSoundBadge__title sc-truncate")[0].title;
 
-            title = document.getElementsByClassName("playbackSoundBadge__title sc-truncate")[0].title;
+        if(newTitle != oldTitle || newPos != oldPos)
+        {
+            oldTitle = newTitle;
+            oldPos = newPos;
+
+            title = newTitle;
             artist = document.getElementsByClassName("playbackSoundBadge__context sc-link-light sc-truncate")[0].title;
             //album = document.getElementsByClassName("player-album")[0].innerHTML;
             //Only contains album art thumbnail not full sized
             albumArt =  document.getElementsByClassName("playbackSoundBadge")[0].children[0].children[0].children[0];
 
-            position = document.getElementsByClassName("playbackTimeline__timePassed")[0].children[1].innerHTML;
+            position = newPos;
             duration = document.getElementsByClassName("playbackTimeline__duration")[0].children[1].innerHTML;
 
             liked = document.getElementsByClassName("sc-button-like playbackSoundBadge__like sc-button sc-button-small sc-button-responsive sc-button-icon")[0].title;
