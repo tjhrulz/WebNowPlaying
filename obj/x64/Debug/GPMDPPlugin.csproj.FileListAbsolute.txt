@@ -1,0 +1,3 @@
+C:\Users\tjhrulz\Documents\Visual Studio 2015\Projects\GPMDP-Plugin\obj\x64\Debug\WebNowPlaying.dll
+C:\Users\tjhrulz\Documents\Visual Studio 2015\Projects\GPMDP-Plugin\obj\x64\Debug\WebNowPlaying.pdb
+C:\Users\tjhrulz\Documents\Visual Studio 2015\Projects\GPMDP-Plugin\obj\x64\Debug\WebNowPlaying.csprojResolveAssemblyReference.cache

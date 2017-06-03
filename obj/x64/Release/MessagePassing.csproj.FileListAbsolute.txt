@@ -1,0 +1,2 @@
+C:\Users\tjhrulz\Documents\GitHub\WebsocketForRainmeter\obj\x64\Release\WebNowPlaying.csprojResolveAssemblyReference.cache
+C:\Users\tjhrulz\Documents\GitHub\WebsocketForRainmeter\obj\x64\Release\WebNowPlaying.dll

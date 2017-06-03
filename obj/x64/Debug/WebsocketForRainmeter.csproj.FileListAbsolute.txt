@@ -1,0 +1,3 @@
+C:\Users\tjhrulz\Documents\GitHub\WebNowPlaying\obj\x64\Debug\WebNowPlaying.csprojResolveAssemblyReference.cache
+C:\Users\tjhrulz\Documents\GitHub\WebNowPlaying\obj\x64\Debug\WebNowPlaying.dll
+C:\Users\tjhrulz\Documents\GitHub\WebNowPlaying\obj\x64\Debug\WebNowPlaying.pdb
