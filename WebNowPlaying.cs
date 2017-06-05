@@ -25,6 +25,7 @@ namespace WebNowPlaying
                 AlbumArt = "";
                 Duration = "";
                 Position = "";
+                Volume = 100;
                 State = 0;
                 Rating = 0;
                 Repeat = 0;
@@ -39,6 +40,7 @@ namespace WebNowPlaying
             public string AlbumArt { get; set; }
             public string Duration { get; set; }
             public string Position { get; set; }
+            public int Volume { get; set; }
             public int State { get; set; }
             public int Rating { get; set; }
             public int Repeat { get; set; }
@@ -55,6 +57,7 @@ namespace WebNowPlaying
             AlbumArt,
             Duration,
             Position,
+            Volume,
             State,
             Rating,
             Repeat,
@@ -78,10 +81,6 @@ namespace WebNowPlaying
                 string info = e.Data.Substring(e.Data.IndexOf(":") + 1);
 
 
-                //If already in list remove it
-                lastUpdatedID.Remove(this.ID);
-                lastUpdatedID.Add(this.ID);
-
                 MusicInfo currMusicInfo = new MusicInfo();
                 if(!musicInfo.TryGetValue(this.ID, out currMusicInfo))
                 {
@@ -95,74 +94,105 @@ namespace WebNowPlaying
                 {
                     currMusicInfo.Player = info;
                 }
-                else if (type.ToUpper() == InfoTypes.Title.ToString().ToUpper())
+                else
                 {
-                    currMusicInfo.Title = info;
-                }
-                else if (type.ToUpper() == InfoTypes.Artist.ToString().ToUpper())
-                {
-                    currMusicInfo.Artist = info;
-                }
-                else if (type.ToUpper() == InfoTypes.Album.ToString().ToUpper())
-                {
-                    currMusicInfo.Album = info;
-                }
-                else if (type.ToUpper() == InfoTypes.AlbumArt.ToString().ToUpper())
-                {
-                    currMusicInfo.AlbumArt = info;
-                }
-                else if (type.ToUpper() == InfoTypes.Duration.ToString().ToUpper())
-                {
-                    currMusicInfo.Duration = info;
-                }
-                else if (type.ToUpper() == InfoTypes.Position.ToString().ToUpper())
-                {
-                    currMusicInfo.Position = info;
-                }
-                else if (type.ToUpper() == InfoTypes.State.ToString().ToUpper())
-                {
-                    try
+
+                    if (type.ToUpper() == InfoTypes.Title.ToString().ToUpper())
                     {
-                        currMusicInfo.State = Convert.ToInt16(info);
+                        currMusicInfo.Title = info;
                     }
-                    catch
+                    else if (type.ToUpper() == InfoTypes.Artist.ToString().ToUpper())
                     {
-                        API.Log(API.LogType.Error, "Error converting state to integer, state was:" + info);
+                        currMusicInfo.Artist = info;
+                    }
+                    else if (type.ToUpper() == InfoTypes.Album.ToString().ToUpper())
+                    {
+                        currMusicInfo.Album = info;
+                    }
+                    else if (type.ToUpper() == InfoTypes.AlbumArt.ToString().ToUpper())
+                    {
+                        currMusicInfo.AlbumArt = info;
+                    }
+                    else if (type.ToUpper() == InfoTypes.Duration.ToString().ToUpper())
+                    {
+                        currMusicInfo.Duration = info;
+                    }
+                    else if (type.ToUpper() == InfoTypes.Position.ToString().ToUpper())
+                    {
+                        currMusicInfo.Position = info;
+                    }
+                    else if (type.ToUpper() == InfoTypes.State.ToString().ToUpper())
+                    {
+                        try
+                        {
+                            currMusicInfo.State = Convert.ToInt16(info);
+                        }
+                        catch
+                        {
+                            API.Log(API.LogType.Error, "Error converting state to integer, state was:" + info);
+                        }
+                    }
+                    else if (type.ToUpper() == InfoTypes.Volume.ToString().ToUpper())
+                    {
+                        try
+                        {
+                            currMusicInfo.Volume = Convert.ToInt16(info);
+                        }
+                        catch
+                        {
+                            API.Log(API.LogType.Error, "Error converting volume to integer, volume was:" + info);
+                        }
+                    }
+                    else if (type.ToUpper() == InfoTypes.Rating.ToString().ToUpper())
+                    {
+                        try
+                        {
+                            currMusicInfo.Rating = Convert.ToInt16(info);
+                        }
+                        catch
+                        {
+                            API.Log(API.LogType.Error, "Error converting rating to integer, rating was:" + info);
+                        }
+                    }
+                    else if (type.ToUpper() == InfoTypes.Repeat.ToString().ToUpper())
+                    {
+                        try
+                        {
+                            currMusicInfo.Repeat = Convert.ToInt16(info);
+                        }
+                        catch
+                        {
+                            API.Log(API.LogType.Error, "Error converting repeat state to integer, repeat state was:" + info);
+                        }
+                    }
+                    else if (type.ToUpper() == InfoTypes.Shuffle.ToString().ToUpper())
+                    {
+                        try
+                        {
+                            currMusicInfo.Shuffle = Convert.ToInt16(info);
+                        }
+                        catch
+                        {
+                            API.Log(API.LogType.Error, "Error converting shuffle state to integer, shuffle state was:" + info);
+                        }
+                    }
+
+                    if (currMusicInfo.State != 0)
+                    {
+                        //Only add to last updated info other than player sent
+                        //If already in list remove it
+                        lastUpdatedID.Remove(this.ID);
+                        lastUpdatedID.Add(this.ID);
+                    }
+                    else
+                    {
+                        //Remove it for list of ID's if the title has become blank
+                        lastUpdatedID.Remove(this.ID);
                     }
                 }
-                else if (type.ToUpper() == InfoTypes.Rating.ToString().ToUpper())
-                {
-                    try
-                    {
-                        currMusicInfo.Rating = Convert.ToInt16(info);
-                    }
-                    catch
-                    {
-                        API.Log(API.LogType.Error, "Error converting rating to integer, rating was:" + info);
-                    }
-                }
-                else if (type.ToUpper() == InfoTypes.Repeat.ToString().ToUpper())
-                {
-                    try
-                    {
-                        currMusicInfo.Repeat = Convert.ToInt16(info);
-                    }
-                    catch
-                    {
-                        API.Log(API.LogType.Error, "Error converting repeat state to integer, repeat state was:" + info);
-                    }
-                }
-                else if (type.ToUpper() == InfoTypes.Shuffle.ToString().ToUpper())
-                {
-                    try
-                    {
-                        currMusicInfo.Shuffle = Convert.ToInt16(info);
-                    }
-                    catch
-                    {
-                        API.Log(API.LogType.Error, "Error converting shuffle state to integer, shuffle state was:" + info);
-                    }
-                }
+
+                //System.Diagnostics.Debug.WriteLine(e.Data);
+                //API.Log(API.LogType.Notice, e.Data);
             }
 
             protected override void OnOpen()
@@ -176,11 +206,8 @@ namespace WebNowPlaying
             {
                 base.OnClose(e);
 
-                if (musicInfo.Remove(this.ID))
-                {
-                    //While it should always be safe to assume lastUpdateID has contents if we did remove content from musicInfo we can be more certain
-                    lastUpdatedID.RemoveAt(lastUpdatedID.Count - 1);
-                }
+                lastUpdatedID.Remove(this.ID);
+                musicInfo.Remove(this.ID);
 
             }
             public void SendMessage(string stringToSend)
@@ -235,30 +262,33 @@ namespace WebNowPlaying
             //@TODO Implement keeping of more than just the last update song
             WebSocketServiceHost host;
 
-            if (bang.Equals("playpause"))
+            if (lastUpdatedID.Count > 0)
             {
-                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                host.Sessions.SendTo("PlayPause", lastUpdatedID[lastUpdatedID.Count - 1]);
-            }
-            else if (bang.Equals("next"))
-            {
-                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                host.Sessions.SendTo("next", lastUpdatedID[lastUpdatedID.Count - 1]);
-            }
-            else if (bang.Equals("previous"))
-            {
-                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                host.Sessions.SendTo("previous", lastUpdatedID[lastUpdatedID.Count - 1]);
-            }
-            else if (bang.Equals("repeat"))
-            {
-                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                host.Sessions.SendTo("repeat", lastUpdatedID[lastUpdatedID.Count - 1]);
-            }
-            else if (bang.Equals("shuffle"))
-            {
-                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                host.Sessions.SendTo("shuffle", lastUpdatedID[lastUpdatedID.Count - 1]);
+                if (bang.Equals("playpause"))
+                {
+                    wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                    host.Sessions.SendTo("PlayPause", lastUpdatedID[lastUpdatedID.Count - 1]);
+                }
+                else if (bang.Equals("next"))
+                {
+                    wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                    host.Sessions.SendTo("next", lastUpdatedID[lastUpdatedID.Count - 1]);
+                }
+                else if (bang.Equals("previous"))
+                {
+                    wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                    host.Sessions.SendTo("previous", lastUpdatedID[lastUpdatedID.Count - 1]);
+                }
+                else if (bang.Equals("repeat"))
+                {
+                    wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                    host.Sessions.SendTo("repeat", lastUpdatedID[lastUpdatedID.Count - 1]);
+                }
+                else if (bang.Equals("shuffle"))
+                {
+                    wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                    host.Sessions.SendTo("shuffle", lastUpdatedID[lastUpdatedID.Count - 1]);
+                }
             }
         }
 
@@ -284,8 +314,10 @@ namespace WebNowPlaying
                 case InfoTypes.State:
                     return currMusicInfo.State;
                 case InfoTypes.Status:
-                    //@TODO Implment this to be 1 if any connected 0 if none connected
-                    return wssv.WebSocketServices.SessionCount;
+                    //@TODO have this possibly be per website
+                    return wssv.WebSocketServices.SessionCount > 0 ? 1 : 0;
+                case InfoTypes.Volume:
+                    return currMusicInfo.Volume;
                 case InfoTypes.Rating:
                     return currMusicInfo.Rating;
                 case InfoTypes.Repeat:
