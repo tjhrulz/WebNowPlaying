@@ -62,10 +62,13 @@ namespace WebNowPlaying
         }
 
         public static WebSocketServer wssv;
-        public static int instanceCount = 0;
-        public static MusicInfo musicInfo = new MusicInfo();
+
+        //Dictionary of music info, key is websocket client id
+        public static Dictionary<string, MusicInfo> musicInfo = new Dictionary<string, MusicInfo>();
+        //List of websocket client ids in order of update of client (Last location is most recent)
+        private static List<string> lastUpdatedID = new List<string>();
+
         private InfoTypes playerType = InfoTypes.Status;
-        private static string lastUpdatedID = "";
 
         public class WebNowPlaying : WebSocketBehavior
         {
@@ -74,41 +77,53 @@ namespace WebNowPlaying
                 string type = e.Data.Substring(0, e.Data.IndexOf(":"));
                 string info = e.Data.Substring(e.Data.IndexOf(":") + 1);
 
-                lastUpdatedID = this.ID;
+
+                //If already in list remove it
+                lastUpdatedID.Remove(this.ID);
+                lastUpdatedID.Add(this.ID);
+
+                MusicInfo currMusicInfo = new MusicInfo();
+                if(!musicInfo.TryGetValue(this.ID, out currMusicInfo))
+                {
+                    //This should never happen but just in case do this to prevent getting an error
+                    musicInfo.Add(this.ID, currMusicInfo);
+                    musicInfo.TryGetValue(this.ID, out currMusicInfo);
+                }
+
 
                 if (type.ToUpper() == InfoTypes.Player.ToString().ToUpper())
                 {
-                    musicInfo.Player = info;
+                    currMusicInfo.Player = info;
                 }
                 else if (type.ToUpper() == InfoTypes.Title.ToString().ToUpper())
                 {
-                    musicInfo.Title = info;
+                    currMusicInfo.Title = info;
                 }
                 else if (type.ToUpper() == InfoTypes.Artist.ToString().ToUpper())
                 {
-                    musicInfo.Artist = info;
+                    currMusicInfo.Artist = info;
                 }
                 else if (type.ToUpper() == InfoTypes.Album.ToString().ToUpper())
                 {
-                    musicInfo.Album = info;
+                    currMusicInfo.Album = info;
                 }
                 else if (type.ToUpper() == InfoTypes.AlbumArt.ToString().ToUpper())
                 {
-                    musicInfo.AlbumArt = info;
+                    currMusicInfo.AlbumArt = info;
                 }
                 else if (type.ToUpper() == InfoTypes.Duration.ToString().ToUpper())
                 {
-                    musicInfo.Duration = info;
+                    currMusicInfo.Duration = info;
                 }
                 else if (type.ToUpper() == InfoTypes.Position.ToString().ToUpper())
                 {
-                    musicInfo.Position = info;
+                    currMusicInfo.Position = info;
                 }
                 else if (type.ToUpper() == InfoTypes.State.ToString().ToUpper())
                 {
                     try
                     {
-                        musicInfo.State = Convert.ToInt16(info);
+                        currMusicInfo.State = Convert.ToInt16(info);
                     }
                     catch
                     {
@@ -119,7 +134,7 @@ namespace WebNowPlaying
                 {
                     try
                     {
-                        musicInfo.Rating = Convert.ToInt16(info);
+                        currMusicInfo.Rating = Convert.ToInt16(info);
                     }
                     catch
                     {
@@ -130,7 +145,7 @@ namespace WebNowPlaying
                 {
                     try
                     {
-                        musicInfo.Repeat = Convert.ToInt16(info);
+                        currMusicInfo.Repeat = Convert.ToInt16(info);
                     }
                     catch
                     {
@@ -141,26 +156,31 @@ namespace WebNowPlaying
                 {
                     try
                     {
-                        musicInfo.Shuffle = Convert.ToInt16(info);
+                        currMusicInfo.Shuffle = Convert.ToInt16(info);
                     }
                     catch
                     {
                         API.Log(API.LogType.Error, "Error converting shuffle state to integer, shuffle state was:" + info);
                     }
                 }
-
-
-                System.Diagnostics.Debug.WriteLine(e.Data);
-                API.Log(API.LogType.Notice, e.Data);
             }
 
             protected override void OnOpen()
             {
                 base.OnOpen();
+
+                MusicInfo currMusicInfo = new MusicInfo();
+                musicInfo.Add(this.ID, currMusicInfo);
             }
             protected override void OnClose(CloseEventArgs e)
             {
                 base.OnClose(e);
+
+                if (musicInfo.Remove(this.ID))
+                {
+                    //While it should always be safe to assume lastUpdateID has contents if we did remove content from musicInfo we can be more certain
+                    lastUpdatedID.RemoveAt(lastUpdatedID.Count - 1);
+                }
 
             }
             public void SendMessage(string stringToSend)
@@ -218,41 +238,60 @@ namespace WebNowPlaying
             if (bang.Equals("playpause"))
             {
                 wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                host.Sessions.SendTo("PlayPause", lastUpdatedID);
+                host.Sessions.SendTo("PlayPause", lastUpdatedID[lastUpdatedID.Count - 1]);
             }
             else if (bang.Equals("next"))
             {
-                wssv.WebSocketServices.Broadcast("next");
+                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                host.Sessions.SendTo("next", lastUpdatedID[lastUpdatedID.Count - 1]);
             }
             else if (bang.Equals("previous"))
             {
-                wssv.WebSocketServices.Broadcast("previous");
+                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                host.Sessions.SendTo("previous", lastUpdatedID[lastUpdatedID.Count - 1]);
             }
             else if (bang.Equals("repeat"))
             {
-                wssv.WebSocketServices.Broadcast("repeat");
+                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                host.Sessions.SendTo("repeat", lastUpdatedID[lastUpdatedID.Count - 1]);
             }
             else if (bang.Equals("shuffle"))
             {
-                wssv.WebSocketServices.Broadcast("shuffle");
+                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                host.Sessions.SendTo("shuffle", lastUpdatedID[lastUpdatedID.Count - 1]);
             }
         }
 
         internal virtual double Update()
         {
-            switch(playerType)
+            MusicInfo currMusicInfo = new MusicInfo();
+            bool found = false;
+            //Only try to get new info if there could be some in it
+            if (lastUpdatedID.Count > 0)
+            {
+                found = musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out currMusicInfo);
+            }
+
+            //If tried to find and not found
+            if (!found && lastUpdatedID.Count > 0)
+            {
+                API.Log(API.LogType.Error, "WebNowPlaing.dll - Music info not found with that id");
+                currMusicInfo = new MusicInfo();
+            }
+
+            switch (playerType)
             {
                 case InfoTypes.State:
-                    return musicInfo.State;
+                    return currMusicInfo.State;
                 case InfoTypes.Status:
                     //@TODO Implment this to be 1 if any connected 0 if none connected
                     return wssv.WebSocketServices.SessionCount;
                 case InfoTypes.Rating:
-                    return musicInfo.Rating;
+                    return currMusicInfo.Rating;
                 case InfoTypes.Repeat:
-                    return musicInfo.Repeat;
+                    return currMusicInfo.Repeat;
                 case InfoTypes.Shuffle:
-                    return musicInfo.Shuffle;
+                    return currMusicInfo.Shuffle;
             }
 
             return 0.0;
@@ -260,20 +299,37 @@ namespace WebNowPlaying
 
         internal string GetString()
         {
+            MusicInfo currMusicInfo = new MusicInfo();
+            bool found = false;
+            //Only try to get new info if there could be some in it
+            if (lastUpdatedID.Count > 0)
+            {
+                found = musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out currMusicInfo);
+            }
+
+            //If tried to find and not found
+            if (!found && lastUpdatedID.Count > 0)
+            {
+                API.Log(API.LogType.Error, "WebNowPlaing.dll - Music info not found with that id");
+                currMusicInfo = new MusicInfo();
+            }
+
             switch (playerType)
             {
+                case InfoTypes.Player:
+                    return currMusicInfo.Player;
                 case InfoTypes.Title:
-                    return musicInfo.Title;
+                    return currMusicInfo.Title;
                 case InfoTypes.Artist:
-                    return musicInfo.Artist;
+                    return currMusicInfo.Artist;
                 case InfoTypes.Album:
-                    return musicInfo.Album;
+                    return currMusicInfo.Album;
                 case InfoTypes.AlbumArt:
-                    return musicInfo.AlbumArt;
+                    return currMusicInfo.AlbumArt;
                 case InfoTypes.Position:
-                    return musicInfo.Position;
+                    return currMusicInfo.Position;
                 case InfoTypes.Duration:
-                    return musicInfo.Duration;
+                    return currMusicInfo.Duration;
             }
 
             return null;
@@ -289,19 +345,12 @@ namespace WebNowPlaying
         public static void Initialize(ref IntPtr data, IntPtr rm)
         {
             data = GCHandle.ToIntPtr(GCHandle.Alloc(new Measure(new Rainmeter.API(rm))));
-            Measure.instanceCount++;
         }
 
         [DllExport]
         public static void Finalize(IntPtr data)
         {
-
-            Measure.instanceCount--;
-            if (Measure.instanceCount == 0)
-            {
-                Measure.wssv.Stop();
-                Measure.wssv = null;
-            }
+            //Now just keeps the websocket server open to limit reconnects
             GCHandle.FromIntPtr(data).Free();
 
             if (StringBuffer != IntPtr.Zero)
