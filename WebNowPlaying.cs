@@ -7,6 +7,9 @@ using WebSocketSharp.Server;
 using Rainmeter;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Net;
+using System.IO;
+using System.Threading;
 
 namespace WebNowPlaying
 {
@@ -23,6 +26,8 @@ namespace WebNowPlaying
                 Artist = "";
                 Album = "";
                 AlbumArt = "";
+                AlbumArtWebAddress = "";
+                AlbumArtByteArr = new byte[0];
                 Duration = "";
                 Position = "";
                 Volume = 100;
@@ -38,6 +43,8 @@ namespace WebNowPlaying
             public string Artist { get; set; }
             public string Album { get; set; }
             public string AlbumArt { get; set; }
+            public string AlbumArtWebAddress { get; set; }
+            public byte[] AlbumArtByteArr { get; set; }
             public string Duration { get; set; }
             public string Position { get; set; }
             public int Volume { get; set; }
@@ -70,6 +77,11 @@ namespace WebNowPlaying
         public static Dictionary<string, MusicInfo> musicInfo = new Dictionary<string, MusicInfo>();
         //List of websocket client ids in order of update of client (Last location is most recent)
         private static List<string> lastUpdatedID = new List<string>();
+
+        //Fallback location to download coverart to
+        private static string albumArtOutputLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png";
+        //If true write through to disk right away
+        private static bool writeThrough = false;
 
         private InfoTypes playerType = InfoTypes.Status;
 
@@ -111,7 +123,9 @@ namespace WebNowPlaying
                     }
                     else if (type.ToUpper() == InfoTypes.AlbumArt.ToString().ToUpper())
                     {
-                        currMusicInfo.AlbumArt = info;
+                        currMusicInfo.AlbumArt = null;
+                        Thread t = new Thread(() => GetImageFromUrl(this.ID, info, albumArtOutputLocation));
+                        t.Start();
                     }
                     else if (type.ToUpper() == InfoTypes.Duration.ToString().ToUpper())
                     {
@@ -179,20 +193,70 @@ namespace WebNowPlaying
 
                     if (currMusicInfo.State != 0)
                     {
+                        //Get last index of lastUpdatedID so we can see if it changes
+                        string lastID = "0";
+                        if(lastUpdatedID.Count > 0)
+                        {
+                            lastID = lastUpdatedID[lastUpdatedID.Count - 1];
+                        }
+
                         //Only add to last updated info other than player sent
                         //If already in list remove it
                         lastUpdatedID.Remove(this.ID);
                         lastUpdatedID.Add(this.ID);
+
+                        //If last index has changed redownload album art
+                        if(lastID != lastUpdatedID[lastUpdatedID.Count - 1])
+                        {
+                            MusicInfo lastUpdateMusicInfo;
+                            if(musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
+                            {
+                                if (lastUpdateMusicInfo.AlbumArtByteArr.Length > 0)
+                                {
+                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], albumArtOutputLocation, lastUpdateMusicInfo.AlbumArtByteArr);
+                                }
+                                else
+                                {
+                                    writeThrough = true;
+                                }
+                            }
+
+                        }
                     }
                     else
                     {
+                        //Get last index of lastUpdatedID so we can see if it changes
+                        string lastID = "0";
+                        if (lastUpdatedID.Count > 0)
+                        {
+                            lastID = lastUpdatedID[lastUpdatedID.Count - 1];
+                        }
+
                         //Remove it for list of ID's if the title has become blank
                         lastUpdatedID.Remove(this.ID);
+
+                        //If last index has changed redownload album art
+                        if (lastUpdatedID.Count > 0 && lastID != lastUpdatedID[lastUpdatedID.Count - 1])
+                        {
+                            MusicInfo lastUpdateMusicInfo;
+                            if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
+                            {
+                                if (lastUpdateMusicInfo.AlbumArtByteArr.Length > 0)
+                                {
+                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], albumArtOutputLocation, lastUpdateMusicInfo.AlbumArtByteArr);
+                                }
+                                else
+                                {
+                                    writeThrough = true;
+                                }
+                            }
+
+                        }
                     }
                 }
 
-                //System.Diagnostics.Debug.WriteLine(e.Data);
-                //API.Log(API.LogType.Notice, e.Data);
+                System.Diagnostics.Debug.WriteLine(e.Data);
+                API.Log(API.LogType.Notice, e.Data);
             }
 
             protected override void OnOpen()
@@ -216,6 +280,72 @@ namespace WebNowPlaying
             }
         }
 
+        //For downloading the image, called in a thread in the onMessage for the websocket
+        public static void GetImageFromUrl(string id, string url, string filePath)
+        {
+            try
+            {
+                // Create http request
+                HttpWebRequest httpWebRequest = (HttpWebRequest)HttpWebRequest.Create(url);
+                using (HttpWebResponse httpWebReponse = (HttpWebResponse)httpWebRequest.GetResponse())
+                {
+
+                    // Read as stream
+                    using (Stream stream = httpWebReponse.GetResponseStream())
+                    {
+                        Byte[] image = ReadStream(stream);
+
+                        MusicInfo currMusicInfo;
+                        if (musicInfo.TryGetValue(id, out currMusicInfo))
+                        {
+                            currMusicInfo.AlbumArtByteArr = image;
+                            currMusicInfo.AlbumArtWebAddress = url;
+
+                            //If already flagged that an image is need write through to disk right away
+                            if(writeThrough)
+                            {
+                                WriteStream(id, albumArtOutputLocation, image);
+                                writeThrough = false;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                API.Log(API.LogType.Error, "Unable to download album art to: " + albumArtOutputLocation);
+                Console.WriteLine(e);
+            }
+        }
+        private static byte[] ReadStream(Stream input)
+        {
+            byte[] buffer = new byte[1024];
+            using (MemoryStream ms = new MemoryStream())
+            {
+                int read;
+                while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    ms.Write(buffer, 0, read);
+                }
+                return ms.ToArray();
+            }
+        }
+        private static void WriteStream(string id, string filePath, Byte[] image)
+        {
+            if (albumArtOutputLocation == Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png")
+            {
+                // Make sure the path folder exists if using it
+                System.IO.Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying");
+            }
+            // Write stream to file
+            File.WriteAllBytes(filePath, image);
+
+            MusicInfo lastUpdateMusicInfo;
+            if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
+            {
+                lastUpdateMusicInfo.AlbumArt = albumArtOutputLocation;
+            }
+        }
 
 
         internal Measure(Rainmeter.API api)
@@ -247,6 +377,17 @@ namespace WebNowPlaying
             try
             {
                 playerType = (InfoTypes)Enum.Parse(typeof(InfoTypes), playerTypeString, true);
+
+                if(playerType == InfoTypes.AlbumArt)
+                {
+                    //Unused @TODO Implement using this. Probably would be cleanest to null all other music info locations during write to disk
+                    //defaultalbumArtLocation = api.ReadPath("DefaultPath", "");
+                    string temp = api.ReadPath("CoverPath", null);
+                    if(temp.Length > 0)
+                    {
+                        albumArtOutputLocation = temp;
+                    }
+                }
             }
             catch
             {
