@@ -25,9 +25,9 @@ namespace WebNowPlaying
                 Title = "";
                 Artist = "";
                 Album = "";
-                AlbumArt = "";
-                AlbumArtWebAddress = "";
-                AlbumArtByteArr = new byte[0];
+                Cover = "";
+                CoverWebAddress = "";
+                CoverByteArr = new byte[0];
                 Duration = "";
                 Position = "";
                 Volume = 100;
@@ -42,9 +42,9 @@ namespace WebNowPlaying
             public string Title { get; set; }
             public string Artist { get; set; }
             public string Album { get; set; }
-            public string AlbumArt { get; set; }
-            public string AlbumArtWebAddress { get; set; }
-            public byte[] AlbumArtByteArr { get; set; }
+            public string Cover { get; set; }
+            public string CoverWebAddress { get; set; }
+            public byte[] CoverByteArr { get; set; }
             public string Duration { get; set; }
             public string Position { get; set; }
             public int Volume { get; set; }
@@ -61,7 +61,7 @@ namespace WebNowPlaying
             Title,
             Artist,
             Album,
-            AlbumArt,
+            Cover,
             Duration,
             Position,
             Volume,
@@ -79,9 +79,9 @@ namespace WebNowPlaying
         private static List<string> lastUpdatedID = new List<string>();
 
         //Fallback location to download coverart to
-        private static string albumArtOutputLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png";
+        private static string CoverOutputLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png";
         //If true write through to disk right away
-        private static bool writeThrough = false;
+        private static volatile bool writeThrough = false;
 
         private InfoTypes playerType = InfoTypes.Status;
 
@@ -121,10 +121,16 @@ namespace WebNowPlaying
                     {
                         currMusicInfo.Album = info;
                     }
-                    else if (type.ToUpper() == InfoTypes.AlbumArt.ToString().ToUpper())
+                    else if (type.ToUpper() == InfoTypes.Cover.ToString().ToUpper())
                     {
-                        currMusicInfo.AlbumArt = null;
-                        Thread t = new Thread(() => GetImageFromUrl(this.ID, info, albumArtOutputLocation));
+                        currMusicInfo.Cover = null;
+
+                        if(lastUpdatedID.Count > 0 && lastUpdatedID[lastUpdatedID.Count - 1] == this.ID)
+                        {
+                            writeThrough = true;
+                        }
+
+                        Thread t = new Thread(() => GetImageFromUrl(this.ID, info, CoverOutputLocation));
                         t.Start();
                     }
                     else if (type.ToUpper() == InfoTypes.Duration.ToString().ToUpper())
@@ -211,9 +217,9 @@ namespace WebNowPlaying
                             MusicInfo lastUpdateMusicInfo;
                             if(musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
                             {
-                                if (lastUpdateMusicInfo.AlbumArtByteArr.Length > 0)
+                                if (lastUpdateMusicInfo.CoverByteArr.Length > 0)
                                 {
-                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], albumArtOutputLocation, lastUpdateMusicInfo.AlbumArtByteArr);
+                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], CoverOutputLocation, lastUpdateMusicInfo.CoverByteArr);
                                 }
                                 else
                                 {
@@ -241,9 +247,9 @@ namespace WebNowPlaying
                             MusicInfo lastUpdateMusicInfo;
                             if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
                             {
-                                if (lastUpdateMusicInfo.AlbumArtByteArr.Length > 0)
+                                if (lastUpdateMusicInfo.CoverByteArr.Length > 0)
                                 {
-                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], albumArtOutputLocation, lastUpdateMusicInfo.AlbumArtByteArr);
+                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], CoverOutputLocation, lastUpdateMusicInfo.CoverByteArr);
                                 }
                                 else
                                 {
@@ -298,13 +304,13 @@ namespace WebNowPlaying
                         MusicInfo currMusicInfo;
                         if (musicInfo.TryGetValue(id, out currMusicInfo))
                         {
-                            currMusicInfo.AlbumArtByteArr = image;
-                            currMusicInfo.AlbumArtWebAddress = url;
+                            currMusicInfo.CoverByteArr = image;
+                            currMusicInfo.CoverWebAddress = url;
 
                             //If already flagged that an image is need write through to disk right away
                             if(writeThrough)
                             {
-                                WriteStream(id, albumArtOutputLocation, image);
+                                WriteStream(id, CoverOutputLocation, image);
                                 writeThrough = false;
                             }
                         }
@@ -313,7 +319,7 @@ namespace WebNowPlaying
             }
             catch (Exception e)
             {
-                API.Log(API.LogType.Error, "Unable to download album art to: " + albumArtOutputLocation);
+                API.Log(API.LogType.Error, "Unable to download album art to: " + CoverOutputLocation);
                 Console.WriteLine(e);
             }
         }
@@ -332,7 +338,7 @@ namespace WebNowPlaying
         }
         private static void WriteStream(string id, string filePath, Byte[] image)
         {
-            if (albumArtOutputLocation == Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png")
+            if (CoverOutputLocation == Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png")
             {
                 // Make sure the path folder exists if using it
                 System.IO.Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying");
@@ -343,7 +349,7 @@ namespace WebNowPlaying
             MusicInfo lastUpdateMusicInfo;
             if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
             {
-                lastUpdateMusicInfo.AlbumArt = albumArtOutputLocation;
+                lastUpdateMusicInfo.Cover = CoverOutputLocation;
             }
         }
 
@@ -378,14 +384,14 @@ namespace WebNowPlaying
             {
                 playerType = (InfoTypes)Enum.Parse(typeof(InfoTypes), playerTypeString, true);
 
-                if(playerType == InfoTypes.AlbumArt)
+                if(playerType == InfoTypes.Cover)
                 {
                     //Unused @TODO Implement using this. Probably would be cleanest to null all other music info locations during write to disk
-                    //defaultalbumArtLocation = api.ReadPath("DefaultPath", "");
+                    //defaultCoverLocation = api.ReadPath("DefaultPath", "");
                     string temp = api.ReadPath("CoverPath", null);
                     if(temp.Length > 0)
                     {
-                        albumArtOutputLocation = temp;
+                        CoverOutputLocation = temp;
                     }
                 }
             }
@@ -497,8 +503,8 @@ namespace WebNowPlaying
                     return currMusicInfo.Artist;
                 case InfoTypes.Album:
                     return currMusicInfo.Album;
-                case InfoTypes.AlbumArt:
-                    return currMusicInfo.AlbumArt;
+                case InfoTypes.Cover:
+                    return currMusicInfo.Cover;
                 case InfoTypes.Position:
                     return currMusicInfo.Position;
                 case InfoTypes.Duration:
