@@ -570,6 +570,10 @@ namespace WebNowPlaying
                     return currMusicInfo.Shuffle;
                 case InfoTypes.Progress:
                     return currMusicInfo.Progress;
+                case InfoTypes.Position:
+                    return currMusicInfo.PositionSec;
+                case InfoTypes.Duration:
+                    return currMusicInfo.DurationSec;
             }
 
             return 0.0;
