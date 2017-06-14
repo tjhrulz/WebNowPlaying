@@ -28,8 +28,11 @@ namespace WebNowPlaying
                 Cover = "";
                 CoverWebAddress = "";
                 CoverByteArr = new byte[0];
-                Duration = "";
-                Position = "";
+                Duration = "0:00";
+                DurationSec = 0;
+                Position = "0:00";
+                PositionSec = 0;
+                Progress = 0.0;
                 Volume = 100;
                 State = 0;
                 Rating = 0;
@@ -46,7 +49,10 @@ namespace WebNowPlaying
             public string CoverWebAddress { get; set; }
             public byte[] CoverByteArr { get; set; }
             public string Duration { get; set; }
+            public int DurationSec { get; set; }
             public string Position { get; set; }
+            public int PositionSec { get; set; }
+            public double Progress { get; set; }
             public int Volume { get; set; }
             public int State { get; set; }
             public int Rating { get; set; }
@@ -64,6 +70,7 @@ namespace WebNowPlaying
             Cover,
             Duration,
             Position,
+            Progress,
             Volume,
             State,
             Rating,
@@ -87,10 +94,10 @@ namespace WebNowPlaying
 
         public class WebNowPlaying : WebSocketBehavior
         {
-            protected override void OnMessage(MessageEventArgs e)
+            protected override void OnMessage(MessageEventArgs arg)
             {
-                string type = e.Data.Substring(0, e.Data.IndexOf(":"));
-                string info = e.Data.Substring(e.Data.IndexOf(":") + 1);
+                string type = arg.Data.Substring(0, arg.Data.IndexOf(":"));
+                string info = arg.Data.Substring(arg.Data.IndexOf(":") + 1);
 
 
                 MusicInfo currMusicInfo = new MusicInfo();
@@ -135,11 +142,61 @@ namespace WebNowPlaying
                     }
                     else if (type.ToUpper() == InfoTypes.Duration.ToString().ToUpper())
                     {
+                        //TODO Test this always comes before position, maybe set progress back to 0.0 in here
                         currMusicInfo.Duration = info;
+
+                        try
+                        {
+                            string[] durArr = currMusicInfo.Duration.Split(':');
+
+                            //Duration will always have seconds and minutes
+                            int durSec = Convert.ToInt16(durArr[durArr.Length -1]);
+                            int durMin = durArr.Length > 1 ? Convert.ToInt16(durArr[durArr.Length - 2]) * 60 : 0;
+                            int durHour = durArr.Length > 2 ? Convert.ToInt16(durArr[durArr.Length - 3]) * 60 * 60 : 0;
+
+
+                            currMusicInfo.DurationSec = durHour + durMin + durSec;
+                            currMusicInfo.Progress = 0;
+                        }
+                        catch (Exception e)
+                        {
+                            API.Log(API.LogType.Error, "Error converting duration into integer");
+                            API.Log(API.LogType.Debug, e.ToString());
+                        }
                     }
                     else if (type.ToUpper() == InfoTypes.Position.ToString().ToUpper())
                     {
                         currMusicInfo.Position = info;
+
+                        try
+                        {
+                            string[] posArr = currMusicInfo.Position.Split(':');
+
+                            //Duration will always have seconds and minutes
+                            int posSec = Convert.ToInt16(posArr[posArr.Length - 1]);
+                            int posMin = posArr.Length > 1 ? Convert.ToInt16(posArr[posArr.Length - 2]) * 60 : 0;
+                            int posHour = posArr.Length > 2 ? Convert.ToInt16(posArr[posArr.Length - 3]) * 60 * 60 : 0;
+
+
+                            currMusicInfo.PositionSec = posHour + posMin + posSec;
+
+                        }
+                        catch (Exception e)
+                        {
+                            API.Log(API.LogType.Error, "Error converting position into integer");
+                            API.Log(API.LogType.Debug, e.ToString());
+                        }
+
+
+                        if (currMusicInfo.DurationSec > 0)
+                        {
+                            currMusicInfo.Progress = (double)currMusicInfo.PositionSec / currMusicInfo.DurationSec * 100.0;
+                        }
+                        else
+                        {
+                            currMusicInfo.Progress = 100;
+                        }
+
                     }
                     else if (type.ToUpper() == InfoTypes.State.ToString().ToUpper())
                     {
@@ -258,11 +315,27 @@ namespace WebNowPlaying
                             }
 
                         }
+                        else if (lastUpdatedID.Count == 0)
+                        {
+                            lastUpdatedID.Add(this.ID);
+                            MusicInfo lastUpdateMusicInfo;
+                            if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
+                            {
+                                if (lastUpdateMusicInfo.CoverByteArr.Length > 0)
+                                {
+                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], CoverOutputLocation, lastUpdateMusicInfo.CoverByteArr);
+                                }
+                                else
+                                {
+                                    writeThrough = true;
+                                }
+                            }
+                        }
                     }
                 }
 
-                System.Diagnostics.Debug.WriteLine(e.Data);
-                API.Log(API.LogType.Notice, e.Data);
+                System.Diagnostics.Debug.WriteLine(arg.Data);
+                API.Log(API.LogType.Notice, arg.Data);
             }
 
             protected override void OnOpen()
@@ -275,6 +348,26 @@ namespace WebNowPlaying
             protected override void OnClose(CloseEventArgs e)
             {
                 base.OnClose(e);
+
+                //If removing the last index in the update list and there is one before it download album art 
+                if (lastUpdatedID.Count > 1)
+                {
+                    if(lastUpdatedID[lastUpdatedID.Count -1] == this.ID)
+                    {
+                        MusicInfo lastUpdateMusicInfo;
+                        if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 2], out lastUpdateMusicInfo))
+                        {
+                            if (lastUpdateMusicInfo.CoverByteArr.Length > 0)
+                            {
+                                WriteStream(lastUpdatedID[lastUpdatedID.Count - 2], CoverOutputLocation, lastUpdateMusicInfo.CoverByteArr);
+                            }
+                            else
+                            {
+                                writeThrough = true;
+                            }
+                        }
+                    }
+                }
 
                 lastUpdatedID.Remove(this.ID);
                 musicInfo.Remove(this.ID);
@@ -394,6 +487,10 @@ namespace WebNowPlaying
                         CoverOutputLocation = temp;
                     }
                 }
+                else if(playerType == InfoTypes.Progress)
+                {
+                    maxValue = 100;
+                }
             }
             catch
             {
@@ -471,6 +568,8 @@ namespace WebNowPlaying
                     return currMusicInfo.Repeat;
                 case InfoTypes.Shuffle:
                     return currMusicInfo.Shuffle;
+                case InfoTypes.Progress:
+                    return currMusicInfo.Progress;
             }
 
             return 0.0;
