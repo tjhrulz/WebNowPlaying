@@ -576,6 +576,10 @@ namespace WebNowPlaying
                 {
                     API.Log(API.LogType.Error, "WebNowPlaing.dll - SetPosition not yet supported");
                 }
+                else if (bang.Contains("setvolume"))
+                {
+                    API.Log(API.LogType.Error, "WebNowPlaing.dll - SetVolume not yet supported");
+                }
                 else
                 {
                     API.Log(API.LogType.Error, "WebNowPlaying.dll - Unknown bang:" + args);
