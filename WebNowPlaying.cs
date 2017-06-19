@@ -68,6 +68,7 @@ namespace WebNowPlaying
             Artist,
             Album,
             Cover,
+            CoverWebAddress,
             Duration,
             Position,
             Progress,
@@ -87,6 +88,8 @@ namespace WebNowPlaying
 
         //Fallback location to download coverart to
         private static string CoverOutputLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png";
+        private string CoverDefaultLocation = "";
+
         //If true write through to disk right away
         private static volatile bool writeThrough = false;
 
@@ -334,8 +337,8 @@ namespace WebNowPlaying
                     }
                 }
 
-                System.Diagnostics.Debug.WriteLine(arg.Data);
-                API.Log(API.LogType.Notice, arg.Data);
+                //System.Diagnostics.Debug.WriteLine(arg.Data);
+                //API.Log(API.LogType.Notice, arg.Data);
             }
 
             protected override void OnOpen()
@@ -482,9 +485,14 @@ namespace WebNowPlaying
                     //Unused @TODO Implement using this. Probably would be cleanest to null all other music info locations during write to disk
                     //defaultCoverLocation = api.ReadPath("DefaultPath", "");
                     string temp = api.ReadPath("CoverPath", null);
-                    if(temp.Length > 0)
+                    if (temp.Length > 0)
                     {
                         CoverOutputLocation = temp;
+                    }
+                    temp = api.ReadPath("DefaultPath", null);
+                    if (temp.Length > 0)
+                    {
+                        CoverDefaultLocation = temp;
                     }
                 }
                 else if(playerType == InfoTypes.Progress)
@@ -532,6 +540,45 @@ namespace WebNowPlaying
                 {
                     wssv.WebSocketServices.TryGetServiceHost("/", out host);
                     host.Sessions.SendTo("shuffle", lastUpdatedID[lastUpdatedID.Count - 1]);
+                }
+                else if (bang.Equals("togglethumbsup"))
+                {
+                    wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                    host.Sessions.SendTo("togglethumbsup", lastUpdatedID[lastUpdatedID.Count - 1]);
+                }
+                else if (bang.Equals("togglethumbsdown"))
+                {
+                    wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                    host.Sessions.SendTo("togglethumbsdown", lastUpdatedID[lastUpdatedID.Count - 1]);
+                }
+                else if (bang.Contains("rating"))
+                {
+                    wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                    if (bang.Equals("rating"))
+                    {
+                        host.Sessions.SendTo("rating", lastUpdatedID[lastUpdatedID.Count - 1]);
+                    }
+                    else
+                    {
+                        try
+                        {
+
+                            host.Sessions.SendTo("rating " + Convert.ToInt16(bang.Substring(bang.LastIndexOf(" ") + 1)), lastUpdatedID[lastUpdatedID.Count - 1]);
+                        }
+                        catch
+                        {
+                            API.Log(API.LogType.Error, "WebNowPlaing.dll - rating number not recognized assuming no rating");
+                            host.Sessions.SendTo("rating 0", lastUpdatedID[lastUpdatedID.Count - 1]);
+                        }
+                    }
+                }
+                else if (bang.Contains("setposition"))
+                {
+                    API.Log(API.LogType.Error, "WebNowPlaing.dll - SetPosition not yet supported");
+                }
+                else
+                {
+                    API.Log(API.LogType.Error, "WebNowPlaying.dll - Unknown bang:" + args);
                 }
             }
         }
@@ -607,7 +654,13 @@ namespace WebNowPlaying
                 case InfoTypes.Album:
                     return currMusicInfo.Album;
                 case InfoTypes.Cover:
-                    return currMusicInfo.Cover;
+                    if (currMusicInfo.Cover != null)
+                    {
+                        return currMusicInfo.Cover;
+                    }
+                    return CoverDefaultLocation;
+                case InfoTypes.CoverWebAddress:
+                    return currMusicInfo.CoverWebAddress;
                 case InfoTypes.Position:
                     return currMusicInfo.Position;
                 case InfoTypes.Duration:

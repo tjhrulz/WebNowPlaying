@@ -302,3 +302,4 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 obj/x64/Debug/DesignTimeResolveAssemblyReferencesInput.cache
+obj/x64/Release/DesignTimeResolveAssemblyReferencesInput.cache
