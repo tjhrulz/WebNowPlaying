@@ -216,7 +216,8 @@ namespace WebNowPlaying
                     {
                         try
                         {
-                            currMusicInfo.Volume = Convert.ToInt16(info);
+                            //For some odd reason toInt can not take a string containing a decimal directly so convert to decimal first
+                            currMusicInfo.Volume = Convert.ToInt16(Convert.ToDecimal(info));
                         }
                         catch
                         {
