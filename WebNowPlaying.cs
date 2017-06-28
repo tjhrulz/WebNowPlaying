@@ -408,7 +408,6 @@ namespace WebNowPlaying
                             if(writeThrough)
                             {
                                 WriteStream(id, CoverOutputLocation, image);
-                                writeThrough = false;
                             }
                         }
                     }
@@ -416,7 +415,7 @@ namespace WebNowPlaying
             }
             catch (Exception e)
             {
-                API.Log(API.LogType.Error, "Unable to download album art to: " + CoverOutputLocation);
+                API.Log(API.LogType.Error, "Unable to get album art from: " + url);
                 Console.WriteLine(e);
             }
         }
@@ -435,18 +434,27 @@ namespace WebNowPlaying
         }
         private static void WriteStream(string id, string filePath, Byte[] image)
         {
-            if (CoverOutputLocation == Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png")
+            try
             {
-                // Make sure the path folder exists if using it
-                System.IO.Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying");
-            }
-            // Write stream to file
-            File.WriteAllBytes(filePath, image);
+                if (CoverOutputLocation == Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png")
+                {
+                    // Make sure the path folder exists if using it
+                    System.IO.Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying");
+                }
+                // Write stream to file
+                File.WriteAllBytes(filePath, image);
 
-            MusicInfo lastUpdateMusicInfo;
-            if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
+                MusicInfo lastUpdateMusicInfo;
+                if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
+                {
+                    lastUpdateMusicInfo.Cover = CoverOutputLocation;
+                }
+                writeThrough = false;
+            }
+            catch (Exception e)
             {
-                lastUpdateMusicInfo.Cover = CoverOutputLocation;
+                API.Log(API.LogType.Error, "Unable to download album art to: " + CoverOutputLocation);
+                Console.WriteLine(e);
             }
         }
 
