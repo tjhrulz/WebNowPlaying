@@ -294,11 +294,10 @@ namespace WebNowPlaying
                         }
                     }
 
-
-                    //@TODO Possibly remove the state check?
-                    if (currMusicInfo.Title != "" && currMusicInfo.State == 1)
+                    
+                    if (currMusicInfo.Title != "")
                     {
-                        var iterableDictionary = musicInfo.OrderBy(key => key.Value.TimeStamp);
+                        var iterableDictionary = musicInfo.OrderByDescending(key => key.Value.TimeStamp);
                         bool suitableMatch = false;
 
                         foreach (KeyValuePair<string, MusicInfo> item in iterableDictionary)
