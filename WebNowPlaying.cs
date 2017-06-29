@@ -121,8 +121,6 @@ namespace WebNowPlaying
         public static Dictionary<string, MusicInfo> musicInfo = new Dictionary<string, MusicInfo>();
         public static MusicInfo displayedMusicInfo = new MusicInfo();
 
-        public static volatile bool writeThrough = false;
-
         //List of websocket client ids in order of update of client (Last location is most recent)
         //private static List<string> lastUpdatedID = new List<string>();
 
@@ -174,7 +172,6 @@ namespace WebNowPlaying
                     else if (type.ToUpper() == InfoTypes.Cover.ToString().ToUpper())
                     {
                         currMusicInfo.Cover = null;
-                        writeThrough = true;
 
                         Thread t = new Thread(() => GetImageFromUrl(this.ID, info));
                         t.Start();
@@ -295,7 +292,7 @@ namespace WebNowPlaying
                     }
 
                     
-                    if (currMusicInfo.Title != "")
+                    if (currMusicInfo.Title != "" && currMusicInfo.Album != "" && currMusicInfo.Artist != "")
                     {
                         var iterableDictionary = musicInfo.OrderByDescending(key => key.Value.TimeStamp);
                         bool suitableMatch = false;
@@ -312,10 +309,6 @@ namespace WebNowPlaying
                                     {
                                         Thread t = new Thread(() => WriteStream(this.ID, item.Value.CoverByteArr));
                                         t.Start();
-                                    }
-                                    else
-                                    {
-                                        writeThrough = true;
                                     }
                                 }
                                 displayedMusicInfo = item.Value;
@@ -406,9 +399,9 @@ namespace WebNowPlaying
                             currMusicInfo.CoverWebAddress = url;
                         }
 
-                        if (writeThrough && id == displayedMusicInfo.ID)
+                        //If this image comes from the same ID as the current displayed image go on ahead and write to disk
+                        if (id == displayedMusicInfo.ID)
                         {
-                            writeThrough = false;
                             WriteStream(id, image);
                         }
                     }
