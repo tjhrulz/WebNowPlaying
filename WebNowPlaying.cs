@@ -121,6 +121,8 @@ namespace WebNowPlaying
         public static Dictionary<string, MusicInfo> musicInfo = new Dictionary<string, MusicInfo>();
         public static MusicInfo displayedMusicInfo = new MusicInfo();
 
+        public static volatile bool writeThrough = false;
+
         //List of websocket client ids in order of update of client (Last location is most recent)
         //private static List<string> lastUpdatedID = new List<string>();
 
@@ -172,7 +174,9 @@ namespace WebNowPlaying
                     else if (type.ToUpper() == InfoTypes.Cover.ToString().ToUpper())
                     {
                         currMusicInfo.Cover = null;
-                        Thread t = new Thread(() => GetImageFromUrl(this.ID, info, CoverOutputLocation));
+                        writeThrough = true;
+
+                        Thread t = new Thread(() => GetImageFromUrl(this.ID, info));
                         t.Start();
                     }
                     else if (type.ToUpper() == InfoTypes.Duration.ToString().ToUpper())
@@ -299,13 +303,22 @@ namespace WebNowPlaying
 
                         foreach (KeyValuePair<string, MusicInfo> item in iterableDictionary)
                         {
-                            System.Diagnostics.Debug.WriteLine(item.Value.TimeStamp);
-                            API.Log(API.LogType.Notice, item.Value.TimeStamp.ToString());
-
                             //No need to check title since timestamp is only set when title is set
                             //@TODO Add visibility pass to extension and also check it
                             if (item.Value.State == 1 && item.Value.Volume >= 1)
                             {
+                                if(displayedMusicInfo.ID != item.Value.ID)
+                                {
+                                    if (item.Value.CoverByteArr.Length > 0)
+                                    {
+                                        Thread t = new Thread(() => WriteStream(this.ID, item.Value.CoverByteArr));
+                                        t.Start();
+                                    }
+                                    else
+                                    {
+                                        writeThrough = true;
+                                    }
+                                }
                                 displayedMusicInfo = item.Value;
                                 suitableMatch = true;
                                 //If match found break early which should be always very early
@@ -320,8 +333,8 @@ namespace WebNowPlaying
                     }
                 }
 
-                System.Diagnostics.Debug.WriteLine(arg.Data);
-                API.Log(API.LogType.Notice, arg.Data);
+                //System.Diagnostics.Debug.WriteLine(arg.Data);
+                //API.Log(API.LogType.Notice, arg.Data);
             }
 
             protected override void OnOpen()
@@ -373,7 +386,7 @@ namespace WebNowPlaying
         }
 
         //For downloading the image, called in a thread in the onMessage for the websocket
-        public static void GetImageFromUrl(string id, string url, string filePath)
+        public static void GetImageFromUrl(string id, string url)
         {
             try
             {
@@ -392,6 +405,12 @@ namespace WebNowPlaying
                         {
                             currMusicInfo.CoverByteArr = image;
                             currMusicInfo.CoverWebAddress = url;
+                        }
+
+                        if (writeThrough && id == displayedMusicInfo.ID)
+                        {
+                            writeThrough = false;
+                            WriteStream(id, image);
                         }
                     }
                 }
@@ -415,7 +434,7 @@ namespace WebNowPlaying
                 return ms.ToArray();
             }
         }
-        private static void WriteStream(string id, string filePath, Byte[] image)
+        private static void WriteStream(string id, Byte[] image)
         {
             try
             {
@@ -425,7 +444,7 @@ namespace WebNowPlaying
                     System.IO.Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying");
                 }
                 // Write stream to file
-                File.WriteAllBytes(filePath, image);
+                File.WriteAllBytes(CoverOutputLocation, image);
 
                 MusicInfo lastUpdateMusicInfo;
                 if (musicInfo.TryGetValue(id, out lastUpdateMusicInfo))
