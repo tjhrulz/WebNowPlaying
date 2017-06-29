@@ -6,6 +6,7 @@ using WebSocketSharp;
 using WebSocketSharp.Server;
 using Rainmeter;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Net;
 using System.IO;
@@ -19,10 +20,13 @@ namespace WebNowPlaying
     {
         public class MusicInfo
         {
+            private string _Title;
+            private int _State;
+
             public MusicInfo()
             {
                 Player = "";
-                Title = "";
+                _Title = "";
                 Artist = "";
                 Album = "";
                 Cover = "";
@@ -34,15 +38,36 @@ namespace WebNowPlaying
                 PositionSec = 0;
                 Progress = 0.0;
                 Volume = 100;
-                State = 0;
                 Rating = 0;
                 Repeat = 0;
                 Shuffle = 0;
+                _State = 0;
+                TimeStamp = 0;
+                ID = "";
 
             }
 
             public string Player { get; set; }
-            public string Title { get; set; }
+            public string Title
+            {
+                get { return this._Title; }
+                //This is important infomation to if this song should be displayed, update timestamp
+                //Updating this on album and artist info is unneeded, just update for title
+                set
+                {
+                    this._Title = value;
+
+                    if (value != "")
+                    {
+                        this.TimeStamp = DateTime.Now.Ticks / (decimal)TimeSpan.TicksPerMillisecond;
+                    }
+                    else
+                    {
+                        //Just in case the title becomes null after it has been set reset it back to 0
+                        this.TimeStamp = 0;
+                    }
+                }
+            }
             public string Artist { get; set; }
             public string Album { get; set; }
             public string Cover { get; set; }
@@ -54,10 +79,21 @@ namespace WebNowPlaying
             public int PositionSec { get; set; }
             public double Progress { get; set; }
             public int Volume { get; set; }
-            public int State { get; set; }
             public int Rating { get; set; }
             public int Repeat { get; set; }
             public int Shuffle { get; set; }
+            public int State
+            {
+                get { return this._State; }
+                //This is important infomation to if this song should be displayed, update timestamp
+                set
+                {
+                    this._State = value;
+                    this.TimeStamp = DateTime.Now.Ticks / (decimal)TimeSpan.TicksPerMillisecond;
+                }
+            }
+            public decimal TimeStamp { get; private set; }
+            public string ID { get; set; }
         }
 
         enum InfoTypes
@@ -83,20 +119,21 @@ namespace WebNowPlaying
 
         //Dictionary of music info, key is websocket client id
         public static Dictionary<string, MusicInfo> musicInfo = new Dictionary<string, MusicInfo>();
+        public static MusicInfo displayedMusicInfo = new MusicInfo();
+
         //List of websocket client ids in order of update of client (Last location is most recent)
-        private static List<string> lastUpdatedID = new List<string>();
+        //private static List<string> lastUpdatedID = new List<string>();
 
         //Fallback location to download coverart to
         private static string CoverOutputLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png";
         private string CoverDefaultLocation = "";
 
-        //If true write through to disk right away
-        private static volatile bool writeThrough = false;
 
         private InfoTypes playerType = InfoTypes.Status;
 
         public class WebNowPlaying : WebSocketBehavior
         {
+            //Posibly lock this section?
             protected override void OnMessage(MessageEventArgs arg)
             {
                 string type = arg.Data.Substring(0, arg.Data.IndexOf(":"));
@@ -111,6 +148,7 @@ namespace WebNowPlaying
                     musicInfo.TryGetValue(this.ID, out currMusicInfo);
                 }
 
+                currMusicInfo.ID = this.ID;
 
                 if (type.ToUpper() == InfoTypes.Player.ToString().ToUpper())
                 {
@@ -134,12 +172,6 @@ namespace WebNowPlaying
                     else if (type.ToUpper() == InfoTypes.Cover.ToString().ToUpper())
                     {
                         currMusicInfo.Cover = null;
-
-                        if(lastUpdatedID.Count > 0 && lastUpdatedID[lastUpdatedID.Count - 1] == this.ID)
-                        {
-                            writeThrough = true;
-                        }
-
                         Thread t = new Thread(() => GetImageFromUrl(this.ID, info, CoverOutputLocation));
                         t.Start();
                     }
@@ -258,88 +290,38 @@ namespace WebNowPlaying
                         }
                     }
 
-                    if (currMusicInfo.State != 0)
+
+                    //@TODO Possibly remove the state check?
+                    if (currMusicInfo.Title != "" && currMusicInfo.State == 1)
                     {
-                        //Get last index of lastUpdatedID so we can see if it changes
-                        string lastID = "0";
-                        if(lastUpdatedID.Count > 0)
-                        {
-                            lastID = lastUpdatedID[lastUpdatedID.Count - 1];
-                        }
+                        var iterableDictionary = musicInfo.OrderBy(key => key.Value.TimeStamp);
+                        bool suitableMatch = false;
 
-                        //Only add to last updated info other than player sent
-                        //If already in list remove it
-                        lastUpdatedID.Remove(this.ID);
-                        lastUpdatedID.Add(this.ID);
-
-                        //If last index has changed redownload album art
-                        if(lastID != lastUpdatedID[lastUpdatedID.Count - 1])
+                        foreach (KeyValuePair<string, MusicInfo> item in iterableDictionary)
                         {
-                            MusicInfo lastUpdateMusicInfo;
-                            if(musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
+                            System.Diagnostics.Debug.WriteLine(item.Value.TimeStamp);
+                            API.Log(API.LogType.Notice, item.Value.TimeStamp.ToString());
+
+                            //No need to check title since timestamp is only set when title is set
+                            //@TODO Add visibility pass to extension and also check it
+                            if (item.Value.State == 1 && item.Value.Volume >= 1)
                             {
-                                if (lastUpdateMusicInfo.CoverByteArr.Length > 0)
-                                {
-                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], CoverOutputLocation, lastUpdateMusicInfo.CoverByteArr);
-                                }
-                                else
-                                {
-                                    writeThrough = true;
-                                }
+                                displayedMusicInfo = item.Value;
+                                suitableMatch = true;
+                                //If match found break early which should be always very early
+                                break;
                             }
-
-                        }
-                    }
-                    else
-                    {
-                        //Get last index of lastUpdatedID so we can see if it changes
-                        string lastID = "0";
-                        if (lastUpdatedID.Count > 0)
-                        {
-                            lastID = lastUpdatedID[lastUpdatedID.Count - 1];
                         }
 
-                        //Remove it for list of ID's if the title has become blank
-                        lastUpdatedID.Remove(this.ID);
-
-                        //If last index has changed redownload album art
-                        if (lastUpdatedID.Count > 0 && lastID != lastUpdatedID[lastUpdatedID.Count - 1])
+                        if(!suitableMatch)
                         {
-                            MusicInfo lastUpdateMusicInfo;
-                            if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
-                            {
-                                if (lastUpdateMusicInfo.CoverByteArr.Length > 0)
-                                {
-                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], CoverOutputLocation, lastUpdateMusicInfo.CoverByteArr);
-                                }
-                                else
-                                {
-                                    writeThrough = true;
-                                }
-                            }
-
-                        }
-                        else if (lastUpdatedID.Count == 0)
-                        {
-                            lastUpdatedID.Add(this.ID);
-                            MusicInfo lastUpdateMusicInfo;
-                            if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
-                            {
-                                if (lastUpdateMusicInfo.CoverByteArr.Length > 0)
-                                {
-                                    WriteStream(lastUpdatedID[lastUpdatedID.Count - 1], CoverOutputLocation, lastUpdateMusicInfo.CoverByteArr);
-                                }
-                                else
-                                {
-                                    writeThrough = true;
-                                }
-                            }
+                            displayedMusicInfo = iterableDictionary.FirstOrDefault().Value;
                         }
                     }
                 }
 
-                //System.Diagnostics.Debug.WriteLine(arg.Data);
-                //API.Log(API.LogType.Notice, arg.Data);
+                System.Diagnostics.Debug.WriteLine(arg.Data);
+                API.Log(API.LogType.Notice, arg.Data);
             }
 
             protected override void OnOpen()
@@ -354,26 +336,33 @@ namespace WebNowPlaying
                 base.OnClose(e);
 
                 //If removing the last index in the update list and there is one before it download album art 
-                if (lastUpdatedID.Count > 1)
+                if (displayedMusicInfo.ID == this.ID)
                 {
-                    if(lastUpdatedID[lastUpdatedID.Count -1] == this.ID)
+                    var iterableDictionary = musicInfo.OrderBy(key => key.Value.TimeStamp);
+                    bool suitableMatch = false;
+
+                    foreach (KeyValuePair<string, MusicInfo> item in iterableDictionary)
                     {
-                        MusicInfo lastUpdateMusicInfo;
-                        if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 2], out lastUpdateMusicInfo))
+                        System.Diagnostics.Debug.WriteLine(item.Value.TimeStamp);
+                        API.Log(API.LogType.Notice, item.Value.TimeStamp.ToString());
+
+                        //No need to check title since timestamp is only set when title is set
+                        //@TODO Add visibility pass to extension and also check it
+                        if (item.Value.State == 1 && item.Value.Volume >= 1)
                         {
-                            if (lastUpdateMusicInfo.CoverByteArr.Length > 0)
-                            {
-                                WriteStream(lastUpdatedID[lastUpdatedID.Count - 2], CoverOutputLocation, lastUpdateMusicInfo.CoverByteArr);
-                            }
-                            else
-                            {
-                                writeThrough = true;
-                            }
+                            displayedMusicInfo = item.Value;
+                            suitableMatch = true;
+                            //If match found break early which should be always very early
+                            break;
                         }
                     }
-                }
 
-                lastUpdatedID.Remove(this.ID);
+                    if (!suitableMatch)
+                    {
+                        displayedMusicInfo = iterableDictionary.FirstOrDefault().Value;
+                    }
+                }
+                
                 musicInfo.Remove(this.ID);
 
             }
@@ -403,12 +392,6 @@ namespace WebNowPlaying
                         {
                             currMusicInfo.CoverByteArr = image;
                             currMusicInfo.CoverWebAddress = url;
-
-                            //If already flagged that an image is need write through to disk right away
-                            if(writeThrough)
-                            {
-                                WriteStream(id, CoverOutputLocation, image);
-                            }
                         }
                     }
                 }
@@ -445,11 +428,10 @@ namespace WebNowPlaying
                 File.WriteAllBytes(filePath, image);
 
                 MusicInfo lastUpdateMusicInfo;
-                if (musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out lastUpdateMusicInfo))
+                if (musicInfo.TryGetValue(id, out lastUpdateMusicInfo))
                 {
                     lastUpdateMusicInfo.Cover = CoverOutputLocation;
                 }
-                writeThrough = false;
             }
             catch (Exception e)
             {
@@ -523,61 +505,61 @@ namespace WebNowPlaying
             //@TODO Implement keeping of more than just the last update song
             WebSocketServiceHost host;
 
-            if (lastUpdatedID.Count > 0)
+            if (displayedMusicInfo.ID != "")
             {
                 if (bang.Equals("playpause"))
                 {
                     wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                    host.Sessions.SendTo("PlayPause", lastUpdatedID[lastUpdatedID.Count - 1]);
+                    host.Sessions.SendTo("PlayPause", displayedMusicInfo.ID);
                 }
                 else if (bang.Equals("next"))
                 {
                     wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                    host.Sessions.SendTo("next", lastUpdatedID[lastUpdatedID.Count - 1]);
+                    host.Sessions.SendTo("next", displayedMusicInfo.ID);
                 }
                 else if (bang.Equals("previous"))
                 {
                     wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                    host.Sessions.SendTo("previous", lastUpdatedID[lastUpdatedID.Count - 1]);
+                    host.Sessions.SendTo("previous", displayedMusicInfo.ID);
                 }
                 else if (bang.Equals("repeat"))
                 {
                     wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                    host.Sessions.SendTo("repeat", lastUpdatedID[lastUpdatedID.Count - 1]);
+                    host.Sessions.SendTo("repeat", displayedMusicInfo.ID);
                 }
                 else if (bang.Equals("shuffle"))
                 {
                     wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                    host.Sessions.SendTo("shuffle", lastUpdatedID[lastUpdatedID.Count - 1]);
+                    host.Sessions.SendTo("shuffle", displayedMusicInfo.ID);
                 }
                 else if (bang.Equals("togglethumbsup"))
                 {
                     wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                    host.Sessions.SendTo("togglethumbsup", lastUpdatedID[lastUpdatedID.Count - 1]);
+                    host.Sessions.SendTo("togglethumbsup", displayedMusicInfo.ID);
                 }
                 else if (bang.Equals("togglethumbsdown"))
                 {
                     wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                    host.Sessions.SendTo("togglethumbsdown", lastUpdatedID[lastUpdatedID.Count - 1]);
+                    host.Sessions.SendTo("togglethumbsdown", displayedMusicInfo.ID);
                 }
                 else if (bang.Contains("rating"))
                 {
                     wssv.WebSocketServices.TryGetServiceHost("/", out host);
                     if (bang.Equals("rating"))
                     {
-                        host.Sessions.SendTo("rating", lastUpdatedID[lastUpdatedID.Count - 1]);
+                        host.Sessions.SendTo("rating", displayedMusicInfo.ID);
                     }
                     else
                     {
                         try
                         {
 
-                            host.Sessions.SendTo("rating " + Convert.ToInt16(bang.Substring(bang.LastIndexOf(" ") + 1)), lastUpdatedID[lastUpdatedID.Count - 1]);
+                            host.Sessions.SendTo("rating " + Convert.ToInt16(bang.Substring(bang.LastIndexOf(" ") + 1)), displayedMusicInfo.ID);
                         }
                         catch
                         {
                             API.Log(API.LogType.Error, "WebNowPlaing.dll - rating number not recognized assuming no rating");
-                            host.Sessions.SendTo("rating 0", lastUpdatedID[lastUpdatedID.Count - 1]);
+                            host.Sessions.SendTo("rating 0", displayedMusicInfo.ID);
                         }
                     }
                 }
@@ -601,13 +583,13 @@ namespace WebNowPlaying
             MusicInfo currMusicInfo = new MusicInfo();
             bool found = false;
             //Only try to get new info if there could be some in it
-            if (lastUpdatedID.Count > 0)
+            if (displayedMusicInfo.ID != "")
             {
-                found = musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out currMusicInfo);
+                found = musicInfo.TryGetValue(displayedMusicInfo.ID, out currMusicInfo);
             }
 
             //If tried to find and not found
-            if (!found && lastUpdatedID.Count > 0)
+            if (!found)
             {
                 API.Log(API.LogType.Error, "WebNowPlaing.dll - Music info not found with that id");
                 currMusicInfo = new MusicInfo();
@@ -644,13 +626,13 @@ namespace WebNowPlaying
             MusicInfo currMusicInfo = new MusicInfo();
             bool found = false;
             //Only try to get new info if there could be some in it
-            if (lastUpdatedID.Count > 0)
+            if (displayedMusicInfo.ID != "")
             {
-                found = musicInfo.TryGetValue(lastUpdatedID[lastUpdatedID.Count - 1], out currMusicInfo);
+                found = musicInfo.TryGetValue(displayedMusicInfo.ID, out currMusicInfo);
             }
 
             //If tried to find and not found
-            if (!found && lastUpdatedID.Count > 0)
+            if (!found)
             {
                 API.Log(API.LogType.Error, "WebNowPlaing.dll - Music info not found with that id");
                 currMusicInfo = new MusicInfo();
