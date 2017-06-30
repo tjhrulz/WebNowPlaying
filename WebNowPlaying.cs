@@ -294,34 +294,7 @@ namespace WebNowPlaying
                     
                     if (currMusicInfo.Title != "" && currMusicInfo.Album != "" && currMusicInfo.Artist != "")
                     {
-                        var iterableDictionary = musicInfo.OrderByDescending(key => key.Value.TimeStamp);
-                        bool suitableMatch = false;
-
-                        foreach (KeyValuePair<string, MusicInfo> item in iterableDictionary)
-                        {
-                            //No need to check title since timestamp is only set when title is set
-                            //@TODO Add visibility pass to extension and also check it
-                            if (item.Value.State == 1 && item.Value.Volume >= 1)
-                            {
-                                if(displayedMusicInfo.ID != item.Value.ID)
-                                {
-                                    if (item.Value.CoverByteArr.Length > 0)
-                                    {
-                                        Thread t = new Thread(() => WriteStream(this.ID, item.Value.CoverByteArr));
-                                        t.Start();
-                                    }
-                                }
-                                displayedMusicInfo = item.Value;
-                                suitableMatch = true;
-                                //If match found break early which should be always very early
-                                break;
-                            }
-                        }
-
-                        if(!suitableMatch)
-                        {
-                            displayedMusicInfo = iterableDictionary.FirstOrDefault().Value;
-                        }
+                        updateDisplayedInfo();
                     }
                 }
 
@@ -343,29 +316,7 @@ namespace WebNowPlaying
                 //If removing the last index in the update list and there is one before it download album art 
                 if (displayedMusicInfo.ID == this.ID)
                 {
-                    var iterableDictionary = musicInfo.OrderBy(key => key.Value.TimeStamp);
-                    bool suitableMatch = false;
-
-                    foreach (KeyValuePair<string, MusicInfo> item in iterableDictionary)
-                    {
-                        System.Diagnostics.Debug.WriteLine(item.Value.TimeStamp);
-                        API.Log(API.LogType.Notice, item.Value.TimeStamp.ToString());
-
-                        //No need to check title since timestamp is only set when title is set
-                        //@TODO Add visibility pass to extension and also check it
-                        if (item.Value.State == 1 && item.Value.Volume >= 1)
-                        {
-                            displayedMusicInfo = item.Value;
-                            suitableMatch = true;
-                            //If match found break early which should be always very early
-                            break;
-                        }
-                    }
-
-                    if (!suitableMatch)
-                    {
-                        displayedMusicInfo = iterableDictionary.FirstOrDefault().Value;
-                    }
+                    updateDisplayedInfo();
                 }
                 
                 musicInfo.Remove(this.ID);
@@ -374,6 +325,38 @@ namespace WebNowPlaying
             public void SendMessage(string stringToSend)
             {
                 Sessions.Broadcast(stringToSend);
+            }
+        }
+
+        public static void updateDisplayedInfo()
+        {
+            var iterableDictionary = musicInfo.OrderByDescending(key => key.Value.TimeStamp);
+            bool suitableMatch = false;
+
+            foreach (KeyValuePair<string, MusicInfo> item in iterableDictionary)
+            {
+                //No need to check title since timestamp is only set when title is set
+                //@TODO Add visibility pass to extension and also check it
+                if (item.Value.State == 1 && item.Value.Volume >= 1)
+                {
+                    if (displayedMusicInfo.ID != item.Value.ID)
+                    {
+                        if (item.Value.CoverByteArr.Length > 0)
+                        {
+                            Thread t = new Thread(() => WriteStream(item.Value.ID, item.Value.CoverByteArr));
+                            t.Start();
+                        }
+                    }
+                    displayedMusicInfo = item.Value;
+                    suitableMatch = true;
+                    //If match found break early which should be always very early
+                    break;
+                }
+            }
+
+            if (!suitableMatch)
+            {
+                displayedMusicInfo = iterableDictionary.FirstOrDefault().Value;
             }
         }
 
