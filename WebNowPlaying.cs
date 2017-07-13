@@ -148,6 +148,12 @@ namespace WebNowPlaying
                     musicInfo.TryGetValue(this.ID, out currMusicInfo);
                 }
 
+                //I guess that TryGetValue can return an uninitialized value in some errors, so make sure it is good
+                if(currMusicInfo == null)
+                {
+                    currMusicInfo = new MusicInfo();
+                }
+
                 currMusicInfo.ID = this.ID;
 
                 if (type.ToUpper() == InfoTypes.Player.ToString().ToUpper())
@@ -557,13 +563,64 @@ namespace WebNowPlaying
                         }
                     }
                 }
-                else if (bang.Contains("setposition"))
+                else if (bang.Contains("setposition "))
                 {
-                    API.Log(API.LogType.Error, "WebNowPlaing.dll - SetPosition not yet supported");
+                    API.Log(API.LogType.Error, "WebNowPlaing.dll - SetPosition not yet fully supported");
+
+                    try
+                    {
+                        if (bang.Contains("-"))
+                        {
+                            int newTime = displayedMusicInfo.PositionSec - Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("-") + 1)) / 100.0 * displayedMusicInfo.DurationSec);
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
+                        }
+                        else if (bang.Contains("+"))
+                        {
+                            int newTime = displayedMusicInfo.PositionSec + Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("+") + 1)) / 100.0 * displayedMusicInfo.DurationSec);
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
+                        }
+                        else
+                        {
+                            int newTime = Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("setposition ") + 12)) / 100.0 * displayedMusicInfo.DurationSec);
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
+                        }
+                    }
+                    catch
+                    {
+                        API.Log(API.LogType.Error, "WebNowPlaing.dll - SetPosition argument could not be converted to a decimal: " + args);
+                    }
                 }
-                else if (bang.Contains("setvolume"))
+                else if (bang.Contains("setvolume "))
                 {
-                    API.Log(API.LogType.Error, "WebNowPlaing.dll - SetVolume not yet supported");
+                    API.Log(API.LogType.Error, "WebNowPlaing.dll - SetVolume not yet fully supported");
+
+                    try
+                    {
+                        if (bang.Contains("-"))
+                        {
+                            double newVolume = displayedMusicInfo.Volume - Convert.ToDouble(bang.Substring(bang.IndexOf("-") + 1));
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
+                        }
+                        else if (bang.Contains("+"))
+                        {
+                            double newVolume = displayedMusicInfo.Volume + Convert.ToDouble(bang.Substring(bang.IndexOf("+") + 1));
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
+                        }
+                        else
+                        {
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo(bang, displayedMusicInfo.ID);
+                        }
+                    }
+                    catch
+                    {
+                        API.Log(API.LogType.Error, "WebNowPlaing.dll - SetPosition argument could not be converted to a decimal: " + args);
+                    }
                 }
                 else
                 {
