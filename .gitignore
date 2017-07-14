@@ -303,3 +303,4 @@ $RECYCLE.BIN/
 *.lnk
 obj/x64/Debug/DesignTimeResolveAssemblyReferencesInput.cache
 obj/x64/Release/DesignTimeResolveAssemblyReferencesInput.cache
+APIKeysPrivate.cs
