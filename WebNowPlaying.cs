@@ -7,10 +7,15 @@ using WebSocketSharp.Server;
 using Rainmeter;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Net;
 using System.IO;
 using System.Threading;
+
+//Spotify library so I did not need to build my own web request system
+using SpotifyAPI.Web;
+using SpotifyAPI.Web.Auth;
+using SpotifyAPI.Web.Enums;
+using SpotifyAPI.Web.Models;
 
 namespace WebNowPlaying
 {
@@ -43,6 +48,9 @@ namespace WebNowPlaying
                 Shuffle = 0;
                 _State = 0;
                 TimeStamp = 0;
+                TrackID = "";
+                AlbumID = "";
+                ArtistID = "";
                 ID = "";
 
             }
@@ -82,6 +90,9 @@ namespace WebNowPlaying
             public int Rating { get; set; }
             public int Repeat { get; set; }
             public int Shuffle { get; set; }
+            public string TrackID { get; set; }
+            public string AlbumID { get; set; }
+            public string ArtistID { get; set; }
             public int State
             {
                 get { return this._State; }
@@ -112,7 +123,10 @@ namespace WebNowPlaying
             State,
             Rating,
             Repeat,
-            Shuffle
+            Shuffle,
+            TrackID,
+            AlbumID,
+            ArtistID
         }
 
         public static WebSocketServer wssv;
@@ -159,6 +173,11 @@ namespace WebNowPlaying
                 if (type.ToUpper() == InfoTypes.Player.ToString().ToUpper())
                 {
                     currMusicInfo.Player = info;
+
+                    if(currMusicInfo.Player == "Spotify" && spotify == null)
+                    {
+                        authSpotify();
+                    }
                 }
                 else
                 {
@@ -177,10 +196,8 @@ namespace WebNowPlaying
                     }
                     else if (type.ToUpper() == InfoTypes.Cover.ToString().ToUpper())
                     {
-                        currMusicInfo.Cover = null;
-
-                        Thread t = new Thread(() => GetImageFromUrl(this.ID, info));
-                        t.Start();
+                        Thread imageDownload = new Thread(() => GetImageFromUrl(this.ID, info));
+                        imageDownload.Start();
                     }
                     else if (type.ToUpper() == InfoTypes.Duration.ToString().ToUpper())
                     {
@@ -192,7 +209,7 @@ namespace WebNowPlaying
                             string[] durArr = currMusicInfo.Duration.Split(':');
 
                             //Duration will always have seconds and minutes
-                            int durSec = Convert.ToInt16(durArr[durArr.Length -1]);
+                            int durSec = Convert.ToInt16(durArr[durArr.Length - 1]);
                             int durMin = durArr.Length > 1 ? Convert.ToInt16(durArr[durArr.Length - 2]) * 60 : 0;
                             int durHour = durArr.Length > 2 ? Convert.ToInt16(durArr[durArr.Length - 3]) * 60 * 60 : 0;
 
@@ -296,8 +313,43 @@ namespace WebNowPlaying
                             API.Log(API.LogType.Error, "Error converting shuffle state to integer, shuffle state was:" + info);
                         }
                     }
+                    else if (type.ToUpper() == InfoTypes.TrackID.ToString().ToUpper())
+                    {
+                        currMusicInfo.TrackID = info;
+                    }
+                    else if (type.ToUpper() == InfoTypes.AlbumID.ToString().ToUpper())
+                    {
+                        string albumCheck = "/album/";
+                        if (info.Contains(albumCheck))
+                        {
+                            currMusicInfo.AlbumID = info.Substring(info.IndexOf(albumCheck) + albumCheck.Length);
+                            if (currMusicInfo.Player == "Spotify" && spotify != null)
+                            {
+                                Thread t = new Thread(() => {
+                                    FullAlbum album = spotify.GetAlbum(currMusicInfo.AlbumID);
 
-                    
+                                    if (album.Name != null && album.Images.Count > 0)
+                                    {
+                                        currMusicInfo.Album = album.Name;
+
+                                        Thread imageDownload = new Thread(() => GetImageFromUrl(this.ID, album.Images[0].Url));
+                                        imageDownload.Start();
+                                    }
+                                    else
+                                    {
+                                        API.Log(API.LogType.Error, "Unable to recognize the ID of the spotify album to get extra info");
+                                    }
+                                });
+                                t.Start();
+                            }
+                        }
+                    }
+                    else if (type.ToUpper() == InfoTypes.ArtistID.ToString().ToUpper())
+                    {
+                        currMusicInfo.ArtistID = info;
+                    }
+
+
                     if (currMusicInfo.Title != "" && currMusicInfo.Album != "" && currMusicInfo.Artist != "")
                     {
                         updateDisplayedInfo();
@@ -384,14 +436,21 @@ namespace WebNowPlaying
                         MusicInfo currMusicInfo;
                         if (musicInfo.TryGetValue(id, out currMusicInfo))
                         {
+                            //@TODO is this null set needed?
+                            currMusicInfo.Cover = null;
                             currMusicInfo.CoverByteArr = image;
-                            currMusicInfo.CoverWebAddress = url;
                         }
 
                         //If this image comes from the same ID as the current displayed image go on ahead and write to disk
                         if (id == displayedMusicInfo.ID)
                         {
                             WriteStream(id, image);
+                        }
+
+                        //Only set web address after image has been written to disk
+                        if(currMusicInfo != null)
+                        {
+                            currMusicInfo.CoverWebAddress = url;
                         }
                     }
                 }
@@ -440,6 +499,30 @@ namespace WebNowPlaying
             }
         }
 
+        private static SpotifyWebAPI spotify;
+
+        private static async void authSpotify()
+        {
+            WebAPIFactory webApiFactory = new WebAPIFactory(
+                "http://localhost",
+                8975,
+                APIKeys.Spotify.ClientID,
+                Scope.UserReadPrivate,
+                TimeSpan.FromSeconds(20)
+            );
+
+            try
+            {
+                //This will open the user's browser and returns once
+                //the user is authorized.
+                spotify = await webApiFactory.GetWebApi();
+            }
+            catch (Exception e)
+            {
+                API.Log(API.LogType.Error, "Error authorizing Spotify account");
+                API.Log(API.LogType.Debug, e.Data.ToString());
+            }
+        }
 
         internal Measure(Rainmeter.API api)
         {
@@ -453,6 +536,11 @@ namespace WebNowPlaying
             if (wssv.IsListening == false)
             {
                 wssv.Start();
+            }
+
+            if(spotify == null)
+            {
+
             }
         }
 
