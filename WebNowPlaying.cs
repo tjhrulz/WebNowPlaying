@@ -17,6 +17,10 @@ using SpotifyAPI.Web.Auth;
 using SpotifyAPI.Web.Enums;
 using SpotifyAPI.Web.Models;
 
+using SpotifyAPI.Local;
+using SpotifyAPI.Local.Enums;
+using SpotifyAPI.Local.Models;
+
 namespace WebNowPlaying
 {
     //@TODO Write plugin to use multiple services and accept custom port configurations
@@ -174,7 +178,7 @@ namespace WebNowPlaying
                 {
                     currMusicInfo.Player = info;
 
-                    if(currMusicInfo.Player == "Spotify" && spotify == null)
+                    if (currMusicInfo.Player == "Spotify" && spotify == null)
                     {
                         authSpotify();
                     }
@@ -192,12 +196,20 @@ namespace WebNowPlaying
                     }
                     else if (type.ToUpper() == InfoTypes.Album.ToString().ToUpper())
                     {
-                        currMusicInfo.Album = info;
+                        //Only update if it is not spotify or if there is no spotify API access
+                        if (currMusicInfo.Player != "Spotify" || spotify == null)
+                        {
+                            currMusicInfo.Album = info;
+                        }
                     }
                     else if (type.ToUpper() == InfoTypes.Cover.ToString().ToUpper())
                     {
-                        Thread imageDownload = new Thread(() => GetImageFromUrl(this.ID, info));
-                        imageDownload.Start();
+                        //Only update if it is not spotify or if there is no spotify API access
+                        if (currMusicInfo.Player != "Spotify" || spotify == null)
+                        {
+                            Thread imageDownload = new Thread(() => GetImageFromUrl(this.ID, info));
+                            imageDownload.Start();
+                        }
                     }
                     else if (type.ToUpper() == InfoTypes.Duration.ToString().ToUpper())
                     {
@@ -348,6 +360,10 @@ namespace WebNowPlaying
                     {
                         currMusicInfo.ArtistID = info;
                     }
+                    else if (type.ToUpper() == "ERROR")
+                    {
+                        API.Log(API.LogType.Error, "Error:" + info);
+                    }
 
 
                     if (currMusicInfo.Title != "" && currMusicInfo.Album != "" && currMusicInfo.Artist != "")
@@ -363,9 +379,8 @@ namespace WebNowPlaying
             protected override void OnOpen()
             {
                 base.OnOpen();
-
-                MusicInfo currMusicInfo = new MusicInfo();
-                musicInfo.Add(this.ID, currMusicInfo);
+                
+                musicInfo.Add(this.ID, new MusicInfo());
             }
             protected override void OnClose(CloseEventArgs e)
             {
@@ -500,6 +515,8 @@ namespace WebNowPlaying
         }
 
         private static SpotifyWebAPI spotify;
+        private static SpotifyLocalAPI spotifyFallbackControls;
+        private static bool userPremium = false;
 
         private static async void authSpotify()
         {
@@ -507,8 +524,8 @@ namespace WebNowPlaying
                 "http://localhost",
                 8975,
                 APIKeys.Spotify.ClientID,
-                Scope.UserReadPrivate,
-                TimeSpan.FromSeconds(20)
+                Scope.UserModifyPlaybackState & Scope.UserReadPrivate,
+                TimeSpan.FromSeconds(60)
             );
 
             try
@@ -516,6 +533,22 @@ namespace WebNowPlaying
                 //This will open the user's browser and returns once
                 //the user is authorized.
                 spotify = await webApiFactory.GetWebApi();
+                //@TODO Evaluate parallelizing this so that it does not block on users that do not approve
+                //Also hitting cancel seems to cause an unrecoverable error outside my code that for some reason is not caught
+                
+                if (spotify.GetPrivateProfile().Product == "premium")
+                {
+                    userPremium = true;
+                }
+                else
+                {
+                    API.Log(API.LogType.Notice, "User is not a spotify premium subscriber, in order to get more advnaced playback controls open Spotify's desktop app");
+                }
+
+                //Connect to spotify desktop app if open, unused as it would seem despite having setters it can not be used to set volume and playback position
+                spotifyFallbackControls = new SpotifyLocalAPI();
+                spotifyFallbackControls.Connect();
+
             }
             catch (Exception e)
             {
@@ -536,11 +569,6 @@ namespace WebNowPlaying
             if (wssv.IsListening == false)
             {
                 wssv.Start();
-            }
-
-            if(spotify == null)
-            {
-
             }
         }
 
@@ -660,20 +688,62 @@ namespace WebNowPlaying
                         if (bang.Contains("-"))
                         {
                             int newTime = displayedMusicInfo.PositionSec - Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("-") + 1)) / 100.0 * displayedMusicInfo.DurationSec);
-                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                            host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
+
+                            if(newTime < 0) { newTime = 0; }
+
+                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
+                            {
+                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                                host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
+                            }
+                            //If player is spotify and API is valid use API
+                            else
+                            {
+                                if (userPremium)
+                                {
+                                    spotify.SeekPlayback(newTime * 1000);
+                                }
+                            }
                         }
                         else if (bang.Contains("+"))
                         {
                             int newTime = displayedMusicInfo.PositionSec + Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("+") + 1)) / 100.0 * displayedMusicInfo.DurationSec);
-                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                            host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
+
+                            if (newTime < 0) { newTime = 0; }
+
+                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
+                            {
+                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                                host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
+                            }
+                            //If player is spotify and API is valid use API
+                            else
+                            {
+                                if (userPremium)
+                                {
+                                    spotify.SeekPlayback(newTime * 1000);
+                                }
+                            }
                         }
                         else
                         {
                             int newTime = Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("setposition ") + 12)) / 100.0 * displayedMusicInfo.DurationSec);
-                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                            host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
+
+                            if (newTime < 0) { newTime = 0; }
+
+                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
+                            {
+                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                                host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
+                            }
+                            //If player is spotify and API is valid use API
+                            else
+                            {
+                                if (userPremium)
+                                {
+                                    spotify.SeekPlayback(newTime * 1000);
+                                }
+                            }
                         }
                     }
                     catch
@@ -690,24 +760,83 @@ namespace WebNowPlaying
                         if (bang.Contains("-"))
                         {
                             double newVolume = displayedMusicInfo.Volume - Convert.ToDouble(bang.Substring(bang.IndexOf("-") + 1));
-                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                            host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
+
+                            if (newVolume > 100) { newVolume = 100; }
+                            else if (newVolume < 0) { newVolume = 0; }
+
+                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
+                            {
+                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                                host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
+                            }
+                            //If player is spotify and API is valid use API
+                            else
+                            {
+                                if (userPremium)
+                                {
+                                    spotify.SetVolume(Convert.ToInt16(newVolume));
+                                }
+                                //else if (SpotifyLocalAPI.IsSpotifyRunning() && SpotifyLocalAPI.IsSpotifyWebHelperRunning())
+                                //{
+                                //    spotifyFallbackControls.GetStatus().Volume = newVolume;
+                                //}
+                            }
                         }
                         else if (bang.Contains("+"))
                         {
                             double newVolume = displayedMusicInfo.Volume + Convert.ToDouble(bang.Substring(bang.IndexOf("+") + 1));
-                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                            host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
+
+                            if (newVolume > 100) { newVolume = 100; }
+                            else if (newVolume < 0) { newVolume = 0; }
+
+                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
+                            {
+                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                                host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
+                            }
+                            //If player is spotify and API is valid use API
+                            else
+                            {
+                                if (userPremium)
+                                {
+                                    spotify.SetVolume(Convert.ToInt16(newVolume));
+                                }
+                                //else if (SpotifyLocalAPI.IsSpotifyRunning() && SpotifyLocalAPI.IsSpotifyWebHelperRunning())
+                                //{
+                                //    spotifyFallbackControls.GetStatus().Volume = newVolume;
+                                //}
+                            }
                         }
                         else
                         {
-                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                            host.Sessions.SendTo(bang, displayedMusicInfo.ID);
+                            double newVolume = Convert.ToDouble(bang.Substring(bang.IndexOf(" ") + 1));
+
+                            if (newVolume > 100) { newVolume = 100; }
+                            else if (newVolume < 0) { newVolume = 0; }
+
+                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
+                            {
+                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                                host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
+                            }
+                            //If player is spotify and API is valid use API
+                            else
+                            {
+                                if (userPremium)
+                                {
+                                    spotify.SetVolume(Convert.ToInt16(newVolume));
+                                }
+                                //else if (SpotifyLocalAPI.IsSpotifyRunning() && SpotifyLocalAPI.IsSpotifyWebHelperRunning())
+                                //{
+                                //    spotifyFallbackControls.GetStatus().Volume = newVolume;
+                                //}
+                            }
                         }
                     }
-                    catch
+                    catch (Exception e)
                     {
-                        API.Log(API.LogType.Error, "WebNowPlaing.dll - SetPosition argument could not be converted to a decimal: " + args);
+                        API.Log(API.LogType.Error, "WebNowPlaing.dll - SetVolume argument could not be converted to a decimal: " + args);
+                        API.Log(API.LogType.Debug, e.Data.ToString());
                     }
                 }
                 else
