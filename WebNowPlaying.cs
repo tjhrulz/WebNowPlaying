@@ -366,7 +366,7 @@ namespace WebNowPlaying
                     }
 
 
-                    if (currMusicInfo.Title != "" && currMusicInfo.Album != "" && currMusicInfo.Artist != "")
+                    if (type.ToUpper() != InfoTypes.Position.ToString().ToUpper() &&currMusicInfo.Title != "" && currMusicInfo.Album != "" && currMusicInfo.Artist != "")
                     {
                         updateDisplayedInfo();
                     }
@@ -389,11 +389,9 @@ namespace WebNowPlaying
                 //If removing the last index in the update list and there is one before it download album art 
                 if (displayedMusicInfo.ID == this.ID)
                 {
+                    musicInfo.Remove(this.ID);
                     updateDisplayedInfo();
                 }
-                
-                musicInfo.Remove(this.ID);
-
             }
             public void SendMessage(string stringToSend)
             {
@@ -429,7 +427,16 @@ namespace WebNowPlaying
 
             if (!suitableMatch)
             {
-                displayedMusicInfo = iterableDictionary.FirstOrDefault().Value;
+                KeyValuePair<string, MusicInfo> fallback = iterableDictionary.FirstOrDefault();
+                if (displayedMusicInfo.ID != fallback.Value.ID)
+                {
+                    if (fallback.Value.CoverByteArr.Length > 0)
+                    {
+                        Thread t = new Thread(() => WriteStream(fallback.Value.ID, fallback.Value.CoverByteArr));
+                        t.Start();
+                    }
+                }
+                displayedMusicInfo = fallback.Value;
             }
         }
 
