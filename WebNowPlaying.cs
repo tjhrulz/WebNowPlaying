@@ -692,65 +692,38 @@ namespace WebNowPlaying
 
                     try
                     {
+                        //SetPosition gives the time in seconds, SetProgress gives it as a percent (0-1)
                         if (bang.Contains("-"))
                         {
                             int newTime = displayedMusicInfo.PositionSec - Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("-") + 1)) / 100.0 * displayedMusicInfo.DurationSec);
 
-                            if(newTime < 0) { newTime = 0; }
+                            if (newTime < 0) { newTime = 0; }
+                            System.Diagnostics.Debug.WriteLine(newTime + ":" + (double)newTime / displayedMusicInfo.DurationSec);
 
-                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
-                            {
-                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                                host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
-                            }
-                            //If player is spotify and API is valid use API
-                            else
-                            {
-                                if (userPremium)
-                                {
-                                    spotify.SeekPlayback(newTime * 1000);
-                                }
-                            }
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetPosition " + newTime + ":SetProgress " + (double)newTime / displayedMusicInfo.DurationSec + ":", displayedMusicInfo.ID);
                         }
                         else if (bang.Contains("+"))
                         {
                             int newTime = displayedMusicInfo.PositionSec + Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("+") + 1)) / 100.0 * displayedMusicInfo.DurationSec);
 
                             if (newTime < 0) { newTime = 0; }
+                            System.Diagnostics.Debug.WriteLine(newTime + ":" + (double)newTime / displayedMusicInfo.DurationSec);
 
-                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
-                            {
-                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                                host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
-                            }
-                            //If player is spotify and API is valid use API
-                            else
-                            {
-                                if (userPremium)
-                                {
-                                    spotify.SeekPlayback(newTime * 1000);
-                                }
-                            }
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetPosition " + newTime + ":SetProgress " + (double)newTime / displayedMusicInfo.DurationSec + ":", displayedMusicInfo.ID);
+
                         }
                         else
                         {
                             int newTime = Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("setposition ") + 12)) / 100.0 * displayedMusicInfo.DurationSec);
 
                             if (newTime < 0) { newTime = 0; }
+                            System.Diagnostics.Debug.WriteLine(newTime + ":" + (double)newTime / displayedMusicInfo.DurationSec);
 
-                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
-                            {
-                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                                host.Sessions.SendTo("SetPosition " + newTime, displayedMusicInfo.ID);
-                            }
-                            //If player is spotify and API is valid use API
-                            else
-                            {
-                                if (userPremium)
-                                {
-                                    spotify.SeekPlayback(newTime * 1000);
-                                }
-                            }
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetPosition " + newTime + ":SetProgress " + (double)newTime / displayedMusicInfo.DurationSec + ":", displayedMusicInfo.ID);
+
                         }
                     }
                     catch
@@ -771,23 +744,9 @@ namespace WebNowPlaying
                             if (newVolume > 100) { newVolume = 100; }
                             else if (newVolume < 0) { newVolume = 0; }
 
-                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
-                            {
-                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                                host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
-                            }
-                            //If player is spotify and API is valid use API
-                            else
-                            {
-                                if (userPremium)
-                                {
-                                    spotify.SetVolume(Convert.ToInt16(newVolume));
-                                }
-                                //else if (SpotifyLocalAPI.IsSpotifyRunning() && SpotifyLocalAPI.IsSpotifyWebHelperRunning())
-                                //{
-                                //    spotifyFallbackControls.GetStatus().Volume = newVolume;
-                                //}
-                            }
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
+
                         }
                         else if (bang.Contains("+"))
                         {
@@ -796,23 +755,8 @@ namespace WebNowPlaying
                             if (newVolume > 100) { newVolume = 100; }
                             else if (newVolume < 0) { newVolume = 0; }
 
-                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
-                            {
-                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                                host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
-                            }
-                            //If player is spotify and API is valid use API
-                            else
-                            {
-                                if (userPremium)
-                                {
-                                    spotify.SetVolume(Convert.ToInt16(newVolume));
-                                }
-                                //else if (SpotifyLocalAPI.IsSpotifyRunning() && SpotifyLocalAPI.IsSpotifyWebHelperRunning())
-                                //{
-                                //    spotifyFallbackControls.GetStatus().Volume = newVolume;
-                                //}
-                            }
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
                         }
                         else
                         {
@@ -821,23 +765,9 @@ namespace WebNowPlaying
                             if (newVolume > 100) { newVolume = 100; }
                             else if (newVolume < 0) { newVolume = 0; }
 
-                            if (displayedMusicInfo.Player != "Spotify" || spotify == null)
-                            {
-                                wssv.WebSocketServices.TryGetServiceHost("/", out host);
-                                host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
-                            }
-                            //If player is spotify and API is valid use API
-                            else
-                            {
-                                if (userPremium)
-                                {
-                                    spotify.SetVolume(Convert.ToInt16(newVolume));
-                                }
-                                //else if (SpotifyLocalAPI.IsSpotifyRunning() && SpotifyLocalAPI.IsSpotifyWebHelperRunning())
-                                //{
-                                //    spotifyFallbackControls.GetStatus().Volume = newVolume;
-                                //}
-                            }
+                            wssv.WebSocketServices.TryGetServiceHost("/", out host);
+                            host.Sessions.SendTo("SetVolume " + newVolume, displayedMusicInfo.ID);
+
                         }
                     }
                     catch (Exception e)
