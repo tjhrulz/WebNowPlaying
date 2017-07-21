@@ -794,7 +794,7 @@ namespace WebNowPlaying
             }
 
             //If tried to find and not found
-            if (!found)
+            if (!found && displayedMusicInfo.ID != "")
             {
                 API.Log(API.LogType.Error, "WebNowPlaing.dll - Music info not found with that id");
                 currMusicInfo = new MusicInfo();
@@ -837,7 +837,7 @@ namespace WebNowPlaying
             }
 
             //If tried to find and not found
-            if (!found)
+            if (!found && displayedMusicInfo.ID != "")
             {
                 API.Log(API.LogType.Error, "WebNowPlaing.dll - Music info not found with that id");
                 currMusicInfo = new MusicInfo();
