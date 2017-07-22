@@ -16,10 +16,7 @@ using SpotifyAPI.Web;
 using SpotifyAPI.Web.Auth;
 using SpotifyAPI.Web.Enums;
 using SpotifyAPI.Web.Models;
-
-using SpotifyAPI.Local;
-using SpotifyAPI.Local.Enums;
-using SpotifyAPI.Local.Models;
+using System.Collections.Concurrent;
 
 namespace WebNowPlaying
 {
@@ -136,7 +133,7 @@ namespace WebNowPlaying
         public static WebSocketServer wssv;
 
         //Dictionary of music info, key is websocket client id
-        public static Dictionary<string, MusicInfo> musicInfo = new Dictionary<string, MusicInfo>();
+        public static ConcurrentDictionary<string, MusicInfo> musicInfo = new ConcurrentDictionary<string, MusicInfo>();
         public static MusicInfo displayedMusicInfo = new MusicInfo();
 
         //List of websocket client ids in order of update of client (Last location is most recent)
@@ -145,6 +142,9 @@ namespace WebNowPlaying
         //Fallback location to download coverart to
         private static string CoverOutputLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png";
         private string CoverDefaultLocation = "";
+
+
+        private static string rainmeterFileSettingsLocation = "";
 
 
         private InfoTypes playerType = InfoTypes.Status;
@@ -162,8 +162,7 @@ namespace WebNowPlaying
                 if(!musicInfo.TryGetValue(this.ID, out currMusicInfo))
                 {
                     //This should never happen but just in case do this to prevent getting an error
-                    musicInfo.Add(this.ID, currMusicInfo);
-                    musicInfo.TryGetValue(this.ID, out currMusicInfo);
+                    musicInfo.GetOrAdd(this.ID, currMusicInfo);
                 }
 
                 //I guess that TryGetValue can return an uninitialized value in some errors, so make sure it is good
@@ -180,7 +179,17 @@ namespace WebNowPlaying
 
                     if (currMusicInfo.Player == "Spotify" && spotify == null)
                     {
-                        authSpotify();
+                        if (spotifyAuthThread.ThreadState == System.Threading.ThreadState.Unstarted)
+                        {
+                            try
+                            {
+                                spotifyAuthThread.Start();
+                            }
+                            catch (Exception e)
+                            {
+                                API.Log(API.LogType.Debug, e.ToString());
+                            }
+                        }
                     }
                 }
                 else
@@ -197,7 +206,7 @@ namespace WebNowPlaying
                     else if (type.ToUpper() == InfoTypes.Album.ToString().ToUpper())
                     {
                         //Only update if it is not spotify or if there is no spotify API access
-                        if (currMusicInfo.Player != "Spotify" || spotify == null)
+                        if (currMusicInfo.Player != "Spotify" || (spotify == null) || (spotify.AccessToken == null))
                         {
                             currMusicInfo.Album = info;
                         }
@@ -205,7 +214,7 @@ namespace WebNowPlaying
                     else if (type.ToUpper() == InfoTypes.Cover.ToString().ToUpper())
                     {
                         //Only update if it is not spotify or if there is no spotify API access
-                        if (currMusicInfo.Player != "Spotify" || spotify == null)
+                        if (currMusicInfo.Player != "Spotify" || (spotify == null) || (spotify.AccessToken == null))
                         {
                             Thread imageDownload = new Thread(() => GetImageFromUrl(this.ID, info));
                             imageDownload.Start();
@@ -231,7 +240,7 @@ namespace WebNowPlaying
                         }
                         catch (Exception e)
                         {
-                            API.Log(API.LogType.Error, "Error converting duration into integer");
+                            API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting duration into integer");
                             API.Log(API.LogType.Debug, e.ToString());
                         }
                     }
@@ -254,7 +263,7 @@ namespace WebNowPlaying
                         }
                         catch (Exception e)
                         {
-                            API.Log(API.LogType.Error, "Error converting position into integer");
+                            API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting position into integer");
                             API.Log(API.LogType.Debug, e.ToString());
                         }
 
@@ -275,9 +284,10 @@ namespace WebNowPlaying
                         {
                             currMusicInfo.State = Convert.ToInt16(info);
                         }
-                        catch
+                        catch (Exception e)
                         {
-                            API.Log(API.LogType.Error, "Error converting state to integer, state was:" + info);
+                            API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting state to integer, state was:" + info);
+                            API.Log(API.LogType.Debug, e.ToString());
                         }
                     }
                     else if (type.ToUpper() == InfoTypes.Volume.ToString().ToUpper())
@@ -287,9 +297,10 @@ namespace WebNowPlaying
                             //For some odd reason toInt can not take a string containing a decimal directly so convert to decimal first
                             currMusicInfo.Volume = Convert.ToInt16(Convert.ToDecimal(info));
                         }
-                        catch
+                        catch (Exception e)
                         {
-                            API.Log(API.LogType.Error, "Error converting volume to integer, volume was:" + info);
+                            API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting volume to integer, volume was:" + info);
+                            API.Log(API.LogType.Debug, e.ToString());
                         }
                     }
                     else if (type.ToUpper() == InfoTypes.Rating.ToString().ToUpper())
@@ -298,9 +309,10 @@ namespace WebNowPlaying
                         {
                             currMusicInfo.Rating = Convert.ToInt16(info);
                         }
-                        catch
+                        catch (Exception e)
                         {
-                            API.Log(API.LogType.Error, "Error converting rating to integer, rating was:" + info);
+                            API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting rating to integer, rating was:" + info);
+                            API.Log(API.LogType.Debug, e.ToString());
                         }
                     }
                     else if (type.ToUpper() == InfoTypes.Repeat.ToString().ToUpper())
@@ -309,9 +321,10 @@ namespace WebNowPlaying
                         {
                             currMusicInfo.Repeat = Convert.ToInt16(info);
                         }
-                        catch
+                        catch (Exception e)
                         {
-                            API.Log(API.LogType.Error, "Error converting repeat state to integer, repeat state was:" + info);
+                            API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting repeat state to integer, repeat state was:" + info);
+                            API.Log(API.LogType.Debug, e.ToString());
                         }
                     }
                     else if (type.ToUpper() == InfoTypes.Shuffle.ToString().ToUpper())
@@ -320,9 +333,10 @@ namespace WebNowPlaying
                         {
                             currMusicInfo.Shuffle = Convert.ToInt16(info);
                         }
-                        catch
+                        catch (Exception e)
                         {
-                            API.Log(API.LogType.Error, "Error converting shuffle state to integer, shuffle state was:" + info);
+                            API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting shuffle state to integer, shuffle state was:" + info);
+                            API.Log(API.LogType.Debug, e.ToString());
                         }
                     }
                     else if (type.ToUpper() == InfoTypes.TrackID.ToString().ToUpper())
@@ -335,7 +349,7 @@ namespace WebNowPlaying
                         if (info.Contains(albumCheck))
                         {
                             currMusicInfo.AlbumID = info.Substring(info.IndexOf(albumCheck) + albumCheck.Length);
-                            if (currMusicInfo.Player == "Spotify" && spotify != null)
+                            if (currMusicInfo.Player == "Spotify" && spotify != null && spotify.AccessToken != null)
                             {
                                 Thread t = new Thread(() => {
                                     FullAlbum album = spotify.GetAlbum(currMusicInfo.AlbumID);
@@ -362,7 +376,7 @@ namespace WebNowPlaying
                     }
                     else if (type.ToUpper() == "ERROR")
                     {
-                        API.Log(API.LogType.Error, "Error:" + info);
+                        API.Log(API.LogType.Debug, "Web Side Error:" + info);
                     }
 
 
@@ -373,23 +387,24 @@ namespace WebNowPlaying
                 }
 
                 //System.Diagnostics.Debug.WriteLine(arg.Data);
-                //API.Log(API.LogType.Notice, arg.Data);
+                //API.Log(API.LogType.Debug, arg.Data);
             }
 
             protected override void OnOpen()
             {
                 base.OnOpen();
                 
-                musicInfo.Add(this.ID, new MusicInfo());
+                musicInfo.GetOrAdd(this.ID, new MusicInfo());
             }
             protected override void OnClose(CloseEventArgs e)
             {
                 base.OnClose(e);
 
+                MusicInfo temp;
                 //If removing the last index in the update list and there is one before it download album art 
-                if (displayedMusicInfo.ID == this.ID)
+                musicInfo.TryRemove(this.ID, out temp);
+                if (displayedMusicInfo.ID == temp.ID)
                 {
-                    musicInfo.Remove(this.ID);
                     updateDisplayedInfo();
                 }
             }
@@ -480,7 +495,7 @@ namespace WebNowPlaying
             catch (Exception e)
             {
                 API.Log(API.LogType.Error, "Unable to get album art from: " + url);
-                Console.WriteLine(e);
+                API.Log(API.LogType.Debug, e.ToString());
             }
         }
         private static byte[] ReadStream(Stream input)
@@ -517,55 +532,105 @@ namespace WebNowPlaying
             catch (Exception e)
             {
                 API.Log(API.LogType.Error, "Unable to download album art to: " + CoverOutputLocation);
-                Console.WriteLine(e);
+                API.Log(API.LogType.Debug, e.ToString());
             }
         }
 
         private static SpotifyWebAPI spotify;
-        private static SpotifyLocalAPI spotifyFallbackControls;
-        private static bool userPremium = false;
+        private static Thread spotifyAuthThread = new Thread(Measure.authSpotify);
 
-        private static async void authSpotify()
+        private static void authSpotify()
         {
-            WebAPIFactory webApiFactory = new WebAPIFactory(
-                "http://localhost",
-                8975,
-                APIKeys.Spotify.ClientID,
-                Scope.UserModifyPlaybackState & Scope.UserReadPrivate,
-                TimeSpan.FromSeconds(60)
-            );
+            char[] tokenType = new char[32];
+            char[] accessToken = new char[256];
 
-            try
+            GetPrivateProfileString("WebNowPlaying", "TokenType", "", tokenType, 32, rainmeterFileSettingsLocation);
+            GetPrivateProfileString("WebNowPlaying", "AccessToken", "", accessToken, 256, rainmeterFileSettingsLocation);
+
+            if (tokenType[0].CompareTo('\0') != 0 && accessToken[0].CompareTo('\0') != 0)
             {
-                //This will open the user's browser and returns once
-                //the user is authorized.
-                spotify = await webApiFactory.GetWebApi();
-                //@TODO Evaluate parallelizing this so that it does not block on users that do not approve
-                //Also hitting cancel seems to cause an unrecoverable error outside my code that for some reason is not caught
-                
-                if (spotify.GetPrivateProfile().Product == "premium")
+                spotify = new SpotifyWebAPI()
                 {
-                    userPremium = true;
-                }
-                else
-                {
-                    API.Log(API.LogType.Notice, "User is not a spotify premium subscriber, in order to get more advnaced playback controls open Spotify's desktop app");
-                }
-
-                //Connect to spotify desktop app if open, unused as it would seem despite having setters it can not be used to set volume and playback position
-                spotifyFallbackControls = new SpotifyLocalAPI();
-                spotifyFallbackControls.Connect();
-
+                    TokenType = new string(tokenType).TrimEnd('\0'),
+                    AccessToken = new string(accessToken).TrimEnd('\0')
+                };
             }
-            catch (Exception e)
+            else
             {
-                API.Log(API.LogType.Error, "Error authorizing Spotify account");
-                API.Log(API.LogType.Debug, e.Data.ToString());
+                ImplicitGrantAuth auth = new ImplicitGrantAuth()
+                {
+                    ClientId = APIKeys.Spotify.ClientID,
+                    RedirectUri = "http://localhost",
+                    Scope = Scope.UserModifyPlaybackState & Scope.UserReadPrivate,
+                };
+
+                auth.OnResponseReceivedEvent += (spotifyToken, state) =>
+                {
+                    auth.StopHttpServer();
+
+                    spotify = new SpotifyWebAPI()
+                    {
+                        TokenType = spotifyToken.TokenType,
+                        AccessToken = spotifyToken.AccessToken
+                    };
+
+                    if (spotify.AccessToken != null)
+                    {
+                        WritePrivateProfileString("WebNowPlaying", "TokenType", spotifyToken.TokenType, rainmeterFileSettingsLocation);
+                        WritePrivateProfileString("WebNowPlaying", "AccessToken", spotifyToken.AccessToken, rainmeterFileSettingsLocation);
+
+
+                        foreach (KeyValuePair<string, MusicInfo> item in musicInfo)
+                        {
+                            if (item.Value.Player == "Spotify" && !item.Value.AlbumID.IsNullOrEmpty())
+                            {
+                                Thread t = new Thread(() =>
+                                {
+                                    FullAlbum album = spotify.GetAlbum(item.Value.AlbumID);
+
+                                    if (album.Name != null && album.Images.Count > 0)
+                                    {
+                                        item.Value.Album = album.Name;
+
+                                        Thread imageDownload = new Thread(() => GetImageFromUrl(item.Value.ID, album.Images[0].Url));
+                                        imageDownload.Start();
+                                    }
+                                    else
+                                    {
+                                        API.Log(API.LogType.Error, "Unable to recognize the ID of the spotify album to get extra info");
+                                    }
+                                });
+                                t.Start();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        API.Log(API.LogType.Error, "Spotify auth canceled, spotify support will be limited. You will not be prompted again until Rainmeter restarts");
+                    }
+                };
+                auth.StartHttpServer();
+                auth.DoAuth();
             }
         }
 
+        //Used for reading and writing values from the rainmeter settings file
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        static extern int GetPrivateProfileString(string section, string key, string defaultValue,
+            [In, Out] char[] value, int size, string filePath);
+
+        [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool WritePrivateProfileString(string section, string key,
+            string value, string filePath);
+
         internal Measure(Rainmeter.API api)
         {
+            if (rainmeterFileSettingsLocation != api.GetSettingsFile())
+            {
+                rainmeterFileSettingsLocation = api.GetSettingsFile();
+            }
+
             if (wssv == null)
             {
                 //@TODO Declare on reload so that custom ports can be allowed
@@ -688,8 +753,6 @@ namespace WebNowPlaying
                 }
                 else if (bang.Contains("setposition "))
                 {
-                    API.Log(API.LogType.Error, "WebNowPlaing.dll - SetPosition not yet fully supported");
-
                     try
                     {
                         //SetPosition gives the time in seconds, SetProgress gives it as a percent (0-1)
@@ -698,7 +761,6 @@ namespace WebNowPlaying
                             int newTime = displayedMusicInfo.PositionSec - Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("-") + 1)) / 100.0 * displayedMusicInfo.DurationSec);
 
                             if (newTime < 0) { newTime = 0; }
-                            System.Diagnostics.Debug.WriteLine(newTime + ":" + (double)newTime / displayedMusicInfo.DurationSec);
 
                             wssv.WebSocketServices.TryGetServiceHost("/", out host);
                             host.Sessions.SendTo("SetPosition " + newTime + ":SetProgress " + (double)newTime / displayedMusicInfo.DurationSec + ":", displayedMusicInfo.ID);
@@ -708,7 +770,6 @@ namespace WebNowPlaying
                             int newTime = displayedMusicInfo.PositionSec + Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("+") + 1)) / 100.0 * displayedMusicInfo.DurationSec);
 
                             if (newTime < 0) { newTime = 0; }
-                            System.Diagnostics.Debug.WriteLine(newTime + ":" + (double)newTime / displayedMusicInfo.DurationSec);
 
                             wssv.WebSocketServices.TryGetServiceHost("/", out host);
                             host.Sessions.SendTo("SetPosition " + newTime + ":SetProgress " + (double)newTime / displayedMusicInfo.DurationSec + ":", displayedMusicInfo.ID);
@@ -719,7 +780,6 @@ namespace WebNowPlaying
                             int newTime = Convert.ToInt32(Convert.ToDouble(args.Substring(bang.IndexOf("setposition ") + 12)) / 100.0 * displayedMusicInfo.DurationSec);
 
                             if (newTime < 0) { newTime = 0; }
-                            System.Diagnostics.Debug.WriteLine(newTime + ":" + (double)newTime / displayedMusicInfo.DurationSec);
 
                             wssv.WebSocketServices.TryGetServiceHost("/", out host);
                             host.Sessions.SendTo("SetPosition " + newTime + ":SetProgress " + (double)newTime / displayedMusicInfo.DurationSec + ":", displayedMusicInfo.ID);
@@ -733,8 +793,6 @@ namespace WebNowPlaying
                 }
                 else if (bang.Contains("setvolume "))
                 {
-                    API.Log(API.LogType.Error, "WebNowPlaing.dll - SetVolume not yet fully supported");
-
                     try
                     {
                         if (bang.Contains("-"))
@@ -785,42 +843,27 @@ namespace WebNowPlaying
 
         internal virtual double Update()
         {
-            MusicInfo currMusicInfo = new MusicInfo();
-            bool found = false;
-            //Only try to get new info if there could be some in it
-            if (displayedMusicInfo.ID != "")
-            {
-                found = musicInfo.TryGetValue(displayedMusicInfo.ID, out currMusicInfo);
-            }
-
-            //If tried to find and not found
-            if (!found && displayedMusicInfo.ID != "")
-            {
-                API.Log(API.LogType.Error, "WebNowPlaing.dll - Music info not found with that id");
-                currMusicInfo = new MusicInfo();
-            }
-
             switch (playerType)
             {
                 case InfoTypes.State:
-                    return currMusicInfo.State;
+                    return displayedMusicInfo.State;
                 case InfoTypes.Status:
                     //@TODO have this possibly be per website
                     return wssv.WebSocketServices.SessionCount > 0 ? 1 : 0;
                 case InfoTypes.Volume:
-                    return currMusicInfo.Volume;
+                    return displayedMusicInfo.Volume;
                 case InfoTypes.Rating:
-                    return currMusicInfo.Rating;
+                    return displayedMusicInfo.Rating;
                 case InfoTypes.Repeat:
-                    return currMusicInfo.Repeat;
+                    return displayedMusicInfo.Repeat;
                 case InfoTypes.Shuffle:
-                    return currMusicInfo.Shuffle;
+                    return displayedMusicInfo.Shuffle;
                 case InfoTypes.Progress:
-                    return currMusicInfo.Progress;
+                    return displayedMusicInfo.Progress;
                 case InfoTypes.Position:
-                    return currMusicInfo.PositionSec;
+                    return displayedMusicInfo.PositionSec;
                 case InfoTypes.Duration:
-                    return currMusicInfo.DurationSec;
+                    return displayedMusicInfo.DurationSec;
             }
 
             return 0.0;
@@ -828,43 +871,29 @@ namespace WebNowPlaying
 
         internal string GetString()
         {
-            MusicInfo currMusicInfo = new MusicInfo();
-            bool found = false;
-            //Only try to get new info if there could be some in it
-            if (displayedMusicInfo.ID != "")
-            {
-                found = musicInfo.TryGetValue(displayedMusicInfo.ID, out currMusicInfo);
-            }
-
-            //If tried to find and not found
-            if (!found && displayedMusicInfo.ID != "")
-            {
-                API.Log(API.LogType.Error, "WebNowPlaing.dll - Music info not found with that id");
-                currMusicInfo = new MusicInfo();
-            }
 
             switch (playerType)
             {
                 case InfoTypes.Player:
-                    return currMusicInfo.Player;
+                    return displayedMusicInfo.Player;
                 case InfoTypes.Title:
-                    return currMusicInfo.Title;
+                    return displayedMusicInfo.Title;
                 case InfoTypes.Artist:
-                    return currMusicInfo.Artist;
+                    return displayedMusicInfo.Artist;
                 case InfoTypes.Album:
-                    return currMusicInfo.Album;
+                    return displayedMusicInfo.Album;
                 case InfoTypes.Cover:
-                    if (currMusicInfo.Cover != null)
+                    if (displayedMusicInfo.Cover != null)
                     {
-                        return currMusicInfo.Cover;
+                        return displayedMusicInfo.Cover;
                     }
                     return CoverDefaultLocation;
                 case InfoTypes.CoverWebAddress:
-                    return currMusicInfo.CoverWebAddress;
+                    return displayedMusicInfo.CoverWebAddress;
                 case InfoTypes.Position:
-                    return currMusicInfo.Position;
+                    return displayedMusicInfo.Position;
                 case InfoTypes.Duration:
-                    return currMusicInfo.Duration;
+                    return displayedMusicInfo.Duration;
             }
 
             return null;
