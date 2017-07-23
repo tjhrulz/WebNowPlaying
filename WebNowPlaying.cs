@@ -136,16 +136,14 @@ namespace WebNowPlaying
         public static ConcurrentDictionary<string, MusicInfo> musicInfo = new ConcurrentDictionary<string, MusicInfo>();
         public static MusicInfo displayedMusicInfo = new MusicInfo();
 
-        //List of websocket client ids in order of update of client (Last location is most recent)
-        //private static List<string> lastUpdatedID = new List<string>();
+        private static Object spotifyTokenLock = new Object();
 
         //Fallback location to download coverart to
         private static string CoverOutputLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png";
         private string CoverDefaultLocation = "";
 
-
         private static string rainmeterFileSettingsLocation = "";
-
+        
 
         private InfoTypes playerType = InfoTypes.Status;
 
@@ -177,17 +175,32 @@ namespace WebNowPlaying
                 {
                     currMusicInfo.Player = info;
 
-                    if (currMusicInfo.Player == "Spotify" && spotify == null)
+                    if (currMusicInfo.Player == "Spotify" && spotifyToken.IsExpired())
                     {
-                        if (spotifyAuthThread.ThreadState == System.Threading.ThreadState.Unstarted)
+                        lock(spotifyTokenLock)
                         {
-                            try
+                            if (spotifyAuthThread.ThreadState == System.Threading.ThreadState.Unstarted)
                             {
-                                spotifyAuthThread.Start();
+                                try
+                                {
+                                    spotifyAuthThread.Start();
+                                }
+                                catch (Exception e)
+                                {
+                                    API.Log(API.LogType.Debug, e.ToString());
+                                }
                             }
-                            catch (Exception e)
+                            else if (spotifyAuthThread.ThreadState == System.Threading.ThreadState.Stopped)
                             {
-                                API.Log(API.LogType.Debug, e.ToString());
+                                try
+                                {
+                                    spotifyAuthThread = new Thread(Measure.authSpotify);
+                                    spotifyAuthThread.Start();
+                                }
+                                catch (Exception e)
+                                {
+                                    API.Log(API.LogType.Debug, e.ToString());
+                                }
                             }
                         }
                     }
@@ -206,7 +219,7 @@ namespace WebNowPlaying
                     else if (type.ToUpper() == InfoTypes.Album.ToString().ToUpper())
                     {
                         //Only update if it is not spotify or if there is no spotify API access
-                        if (currMusicInfo.Player != "Spotify" || (spotify == null) || (spotify.AccessToken == null))
+                        if (currMusicInfo.Player != "Spotify" || spotifyToken.IsExpired())
                         {
                             currMusicInfo.Album = info;
                         }
@@ -214,7 +227,7 @@ namespace WebNowPlaying
                     else if (type.ToUpper() == InfoTypes.Cover.ToString().ToUpper())
                     {
                         //Only update if it is not spotify or if there is no spotify API access
-                        if (currMusicInfo.Player != "Spotify" || (spotify == null) || (spotify.AccessToken == null))
+                        if (currMusicInfo.Player != "Spotify" || spotifyToken.IsExpired())
                         {
                             Thread imageDownload = new Thread(() => GetImageFromUrl(this.ID, info));
                             imageDownload.Start();
@@ -349,7 +362,7 @@ namespace WebNowPlaying
                         if (info.Contains(albumCheck))
                         {
                             currMusicInfo.AlbumID = info.Substring(info.IndexOf(albumCheck) + albumCheck.Length);
-                            if (currMusicInfo.Player == "Spotify" && spotify != null && spotify.AccessToken != null)
+                            if (currMusicInfo.Player == "Spotify" && !spotifyToken.IsExpired())
                             {
                                 Thread t = new Thread(() => {
                                     FullAlbum album = spotify.GetAlbum(currMusicInfo.AlbumID);
@@ -367,6 +380,21 @@ namespace WebNowPlaying
                                     }
                                 });
                                 t.Start();
+                            }
+                            else if (spotifyAuthThread.ThreadState == System.Threading.ThreadState.Stopped)
+                            {
+                                lock (spotifyTokenLock)
+                                {
+                                    try
+                                    {
+                                        spotifyAuthThread = new Thread(Measure.authSpotify);
+                                        spotifyAuthThread.Start();
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        API.Log(API.LogType.Debug, e.ToString());
+                                    }
+                                }
                             }
                         }
                     }
@@ -537,72 +565,58 @@ namespace WebNowPlaying
         }
 
         private static SpotifyWebAPI spotify;
+        private static Token spotifyToken = new Token();
         private static Thread spotifyAuthThread = new Thread(Measure.authSpotify);
 
         private static void authSpotify()
         {
-            char[] tokenType = new char[32];
-            char[] accessToken = new char[256];
+            string refreshToken = spotifyToken.RefreshToken;
 
-            GetPrivateProfileString("WebNowPlaying", "TokenType", "", tokenType, 32, rainmeterFileSettingsLocation);
-            GetPrivateProfileString("WebNowPlaying", "AccessToken", "", accessToken, 256, rainmeterFileSettingsLocation);
-
-            if (tokenType[0].CompareTo('\0') != 0 && accessToken[0].CompareTo('\0') != 0)
+            //If refresh token is empty read the last known one from file
+            if (refreshToken.IsNullOrEmpty())
             {
+                char[] buffer = new char[256];
+                GetPrivateProfileString("WebNowPlaying", "RefreshToken", "", buffer, buffer.Length, rainmeterFileSettingsLocation);
+                refreshToken = new string(buffer).TrimEnd('\0');
+            }
+
+            //Setup authorization, Note: APIKeys.Spotify.ClientID is stripped from the repo and you will need to generate one
+            AutorizationCodeAuth auth = new AutorizationCodeAuth()
+            {
+                ClientId = APIKeys.Spotify.ClientID,
+                RedirectUri = "http://localhost",
+                Scope = Scope.UserModifyPlaybackState & Scope.UserReadPrivate,
+            };
+
+            //Only try if we have a refresh token
+            if (!refreshToken.IsNullOrEmpty())
+            {
+                spotifyToken = auth.RefreshToken(refreshToken, APIKeys.Spotify.ClientSecret);
                 spotify = new SpotifyWebAPI()
                 {
-                    TokenType = new string(tokenType).TrimEnd('\0'),
-                    AccessToken = new string(accessToken).TrimEnd('\0')
+                    TokenType = spotifyToken.TokenType,
+                    AccessToken = spotifyToken.AccessToken
                 };
             }
-            else
-            {
-                ImplicitGrantAuth auth = new ImplicitGrantAuth()
-                {
-                    ClientId = APIKeys.Spotify.ClientID,
-                    RedirectUri = "http://localhost",
-                    Scope = Scope.UserModifyPlaybackState & Scope.UserReadPrivate,
-                };
 
-                auth.OnResponseReceivedEvent += (spotifyToken, state) =>
+            //If our token was bad or did not exist authenticate user
+            if (refreshToken.IsNullOrEmpty() ||  spotifyToken.Error != null)
+            {
+                auth.OnResponseReceivedEvent += (response) =>
                 {
                     auth.StopHttpServer();
 
-                    spotify = new SpotifyWebAPI()
+                    if (response.Code != null)
                     {
-                        TokenType = spotifyToken.TokenType,
-                        AccessToken = spotifyToken.AccessToken
-                    };
+                        //Confirm authorization, Note: APIKeys.Spotify.ClientSecret is stripped from the repo and you will need to generate one
+                        Token spotifyToken = auth.ExchangeAuthCode(response.Code, APIKeys.Spotify.ClientSecret);
+                        WritePrivateProfileString("WebNowPlaying", "RefreshToken", spotifyToken.RefreshToken, rainmeterFileSettingsLocation);
 
-                    if (spotify.AccessToken != null)
-                    {
-                        WritePrivateProfileString("WebNowPlaying", "TokenType", spotifyToken.TokenType, rainmeterFileSettingsLocation);
-                        WritePrivateProfileString("WebNowPlaying", "AccessToken", spotifyToken.AccessToken, rainmeterFileSettingsLocation);
-
-
-                        foreach (KeyValuePair<string, MusicInfo> item in musicInfo)
+                        spotify = new SpotifyWebAPI()
                         {
-                            if (item.Value.Player == "Spotify" && !item.Value.AlbumID.IsNullOrEmpty())
-                            {
-                                Thread t = new Thread(() =>
-                                {
-                                    FullAlbum album = spotify.GetAlbum(item.Value.AlbumID);
-
-                                    if (album.Name != null && album.Images.Count > 0)
-                                    {
-                                        item.Value.Album = album.Name;
-
-                                        Thread imageDownload = new Thread(() => GetImageFromUrl(item.Value.ID, album.Images[0].Url));
-                                        imageDownload.Start();
-                                    }
-                                    else
-                                    {
-                                        API.Log(API.LogType.Error, "Unable to recognize the ID of the spotify album to get extra info");
-                                    }
-                                });
-                                t.Start();
-                            }
-                        }
+                            TokenType = spotifyToken.TokenType,
+                            AccessToken = spotifyToken.AccessToken
+                        };
                     }
                     else
                     {
@@ -611,6 +625,44 @@ namespace WebNowPlaying
                 };
                 auth.StartHttpServer();
                 auth.DoAuth();
+
+                Thread.Sleep(60000);
+                try
+                {
+                    auth.StopHttpServer();
+                }
+                catch
+                {
+                    //Do nothing because there is no way to check if the server is still running before trying to stop it
+                }
+            }
+
+            //Update any old data
+            if (spotify != null && spotify.AccessToken != null)
+            {
+                foreach (KeyValuePair<string, MusicInfo> item in musicInfo)
+                {
+                    if (item.Value != null && item.Value.Player == "Spotify" && !item.Value.AlbumID.IsNullOrEmpty())
+                    {
+                        Thread t = new Thread(() =>
+                        {
+                            FullAlbum album = spotify.GetAlbum(item.Value.AlbumID);
+
+                            if (album.Name != null && album.Images.Count > 0)
+                            {
+                                item.Value.Album = album.Name;
+
+                                Thread imageDownload = new Thread(() => GetImageFromUrl(item.Value.ID, album.Images[0].Url));
+                                imageDownload.Start();
+                            }
+                            else
+                            {
+                                API.Log(API.LogType.Error, "Unable to recognize the ID of the spotify album to get extra info");
+                            }
+                        });
+                        t.Start();
+                    }
+                }
             }
         }
 
