@@ -2,5 +2,5 @@
 A plugin for Rainmeter that when paired with a browser extension allows retrieval of music info from various websites such as soundcloud or youtube. Documentation will come once more stabalized, until then see example.
 
 ## Extension links:
-[Chrome](https://chrome.google.com/webstore/detail/webnowplaying-companion/jfakgfcdgpghbbefmdfjkbdlibjgnbli)  
-[Firefox](https://addons.mozilla.org/en-US/firefox/addon/webnowplaying-companion/)
+[Chrome](https://chrome.google.com/webstore/detail/webnowplaying-companion/jfakgfcdgpghbbefmdfjkbdlibjgnbli) &nbsp; [(Source)](https://github.com/tjhrulz/WebNowPlaying-ChromeExtension)  
+[Firefox](https://addons.mozilla.org/en-US/firefox/addon/webnowplaying-companion/) &nbsp; [(Source)](https://github.com/tjhrulz/WebNowPlaying-FirefoxExtension) 
