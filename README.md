@@ -9,7 +9,17 @@ A plugin for Rainmeter that when paired with a browser extension allows retrieva
 - Standard media information (title, artist, album, cover, position, etc.)
 - Standard media controls (play, skip, shuffle, volume, etc.)
 - Rating support (thumbs up/thumbs down)
-- Automatic switching between different web players based on last sent info and which are currently playing
+- Automatic switching between different web players based on last sent info and which are currently playing  
+
+### List of supported sites:
+- Youtube (Both new and old layouts)
+- Twitch
+- Soundcloud
+- Google Play Music
+- Amazon Music
+- Pandora
+- Spotify
+- Tidal
 
 ### Future additions:
 - Add more sites
