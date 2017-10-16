@@ -1,11 +1,17 @@
 # Web Now Playing for Rainmeter
-A plugin for Rainmeter that when paired with a browser extension allows retrieval of music info from various websites such as soundcloud or youtube.
+A plugin for Rainmeter that when paired with a browser extension allows retrieval of music info and playback control from various websites such as soundcloud or youtube.  
+Included in this repo is an example skin that shows how to use every measure and bang.  
+Source code for the browser extension can be found [here](https://github.com/tjhrulz/WebNowPlaying-BrowserExtension)
+
+#### If you would like to support this plugin and other plugins I make please check out my [patreon](https://www.patreon.com/tjhrulz)
+
 ## Extension links:
-[Chrome](https://chrome.google.com/webstore/detail/webnowplaying-companion/jfakgfcdgpghbbefmdfjkbdlibjgnbli) - [(Source code)](https://github.com/tjhrulz/WebNowPlaying-ChromeExtension)  
-[Firefox](https://addons.mozilla.org/en-US/firefox/addon/webnowplaying-companion/) - [(Source code)](https://github.com/tjhrulz/WebNowPlaying-FirefoxExtension)  
-**Note:** While chrome requires no changes in Firefox you will need to go to the about:config page in Firefox and set network.websocket.allowInsecureFromHTTPS to true
+[Chrome Web Store](https://chrome.google.com/webstore/detail/webnowplaying-companion/jfakgfcdgpghbbefmdfjkbdlibjgnbli)  
+[Firefox Addons Store](https://addons.mozilla.org/en-US/firefox/addon/webnowplaying-companion/)  
+**Note:** While using Firefox you will need to go to the about:config page in Firefox and set network.websocket.allowInsecureFromHTTPS to true until I can look into using a self signed SSL Certifcate or have the funds to purchase one. 
 
 ### Current state:
+A rewrite of the companion plugin is in the works. Before that goes live a WebNowPlaying plugin update will be posted.  
 
 - Standard media information (title, artist, album, cover, position, etc.)
 - Standard media controls (play, skip, shuffle, volume, etc.)
@@ -22,9 +28,9 @@ A plugin for Rainmeter that when paired with a browser extension allows retrieva
 - Spotify
 - Tidal
 
-### Future additions:
-- Add more sites
-- Auto support a site if audio or video object found
+### Future additions: (See extension source code for web side addition)
+- Improve autoswitcher
+- Storing image in temp when no location is declared instead of in your Rainmeter directory
 
 #### If you would like you can donate to support the plugin [here](https://www.paypal.me/tjhrulz)
 
@@ -114,6 +120,3 @@ A plugin for Rainmeter that when paired with a browser extension allows retrieva
 - `SetRating #`
 
   Where # is an integer, 0-5. Sites with binary rating system have Thumbs Down =1 Thumbs up =5. 0 is unrated.
-
-## List of current bugs and oddities:
-Similar to the spotify plugin all measures share the same cover download location so do not use the absolute path to your cover location, however unlike spotify your default cover location will always be your one.
