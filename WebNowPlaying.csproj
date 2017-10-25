@@ -87,8 +87,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="SpotifyAPI, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>packages\SpotifyAPI-NET.2.15.0\lib\SpotifyAPI.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>packages\SpotifyAPI-NET.2.16.0\lib\SpotifyAPI.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Xml" />
