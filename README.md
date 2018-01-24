@@ -36,6 +36,10 @@ A rewrite of the companion plugin is in the works. Before that goes live a WebNo
 
 ## Measure types:
 
+- `Player`
+
+  What the name of the player is the song is coming from. i.e Youtube or Soundcloud  
+  
 - `Title, Artist, Album`
 
   String of current playing songs info, blank if no info.    
