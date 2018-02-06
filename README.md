@@ -8,6 +8,7 @@ Source code for the browser extension can be found [here](https://github.com/tjh
 ## Extension links:
 [Chrome Web Store](https://chrome.google.com/webstore/detail/webnowplaying-companion/jfakgfcdgpghbbefmdfjkbdlibjgnbli)  
 [Firefox Addons Store](https://addons.mozilla.org/en-US/firefox/addon/webnowplaying-companion/)  
+**[Browser extension source](https://github.com/tjhrulz/WebNowPlaying-BrowserExtension)**  
 **Note:** While using Firefox you will need to go to the about:config page in Firefox and set network.websocket.allowInsecureFromHTTPS to true until I can look into using a self signed SSL Certifcate or have the funds to purchase one. 
 
 ### Current state:
