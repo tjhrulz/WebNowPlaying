@@ -354,10 +354,7 @@ namespace WebNowPlaying
                 }
                 
                 // Parse the string into a timespan object
-                TimeSpan time = TimeSpan.Parse(timeStamp);
-                double toReturn = time.TotalMilliseconds;
-                API.Log(API.LogType.Debug, $"Converted {timeStamp} into {toReturn}ms ({time:g})");
-                return (int) toReturn;
+                return (int) TimeSpan.Parse(timeStamp).TotalMilliseconds;
             }
 
             protected override void OnOpen()
