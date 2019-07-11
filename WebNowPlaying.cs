@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 //using Newtonsoft.Json;
 //using Newtonsoft.Json.Linq;
@@ -79,6 +79,7 @@ namespace WebNowPlaying
             public byte[] CoverByteArr { get; set; }
             public string Duration { get; set; }
             public int DurationSec { get; set; }
+            public int DurationMs { get; set; }
             public string Position { get; set; }
             public int PositionSec { get; set; }
             public int PositionMs { get; set; }
@@ -124,7 +125,8 @@ namespace WebNowPlaying
             TrackID,
             AlbumID,
             ArtistID,
-            PositionMs
+            PositionMs,
+            DurationMs
         }
 
         public static WebSocketServer wssv;
@@ -210,6 +212,16 @@ namespace WebNowPlaying
                             catch (Exception e)
                             {
                                 API.Log(API.LogType.Error, $"WebNowPlaying.dll - Error converting duration into seconds ({info})");
+                                API.Log(API.LogType.Debug, e.ToString());
+                            }
+                        } else if (type.ToUpper() == InfoTypes.DurationMs.ToString().ToUpper()) {
+                            currMusicInfo.Duration = info;
+
+                            try {
+                                currMusicInfo.DurationMs = getMsFromTimeStamp(info);
+                                currMusicInfo.DurationSec = getMsFromTimeStamp(info) / 1000;
+                            } catch (Exception e) {
+                                API.Log(API.LogType.Error, $"WebNowPlaying.dll - Error converting duration into milliseconds ({info})");
                                 API.Log(API.LogType.Debug, e.ToString());
                             }
                         }
@@ -806,6 +818,10 @@ namespace WebNowPlaying
                             : displayedMusicInfo.PositionMs;
                     case InfoTypes.Duration:
                         return displayedMusicInfo.DurationSec;
+                    case InfoTypes.DurationMs:
+                        return displayedMusicInfo.DurationMs == -1
+                            ? displayedMusicInfo.DurationSec * 1000
+                            : displayedMusicInfo.DurationMs;
                 }
             }
             catch (Exception e)
@@ -844,8 +860,12 @@ namespace WebNowPlaying
                     case InfoTypes.CoverWebAddress:
                         return displayedMusicInfo.CoverWebAddress;
                     case InfoTypes.Position:
+                        return displayedMusicInfo.Position.Remove(displayedMusicInfo.Position.IndexOf('.'));
+                    case InfoTypes.PositionMs:
                         return displayedMusicInfo.Position;
                     case InfoTypes.Duration:
+                        return displayedMusicInfo.Duration.Remove(displayedMusicInfo.Duration.IndexOf('.'));
+                    case InfoTypes.DurationMs:
                         return displayedMusicInfo.Duration;
                 }
             }
