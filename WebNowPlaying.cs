@@ -81,6 +81,7 @@ namespace WebNowPlaying
             public int DurationSec { get; set; }
             public string Position { get; set; }
             public int PositionSec { get; set; }
+            public int PositionMs { get; set; }
             public double Progress { get; set; }
             public int Volume { get; set; }
             public int Rating { get; set; }
@@ -122,7 +123,8 @@ namespace WebNowPlaying
             Shuffle,
             TrackID,
             AlbumID,
-            ArtistID
+            ArtistID,
+            PositionMs
         }
 
         public static WebSocketServer wssv;
@@ -168,6 +170,7 @@ namespace WebNowPlaying
                     }
 
                     currMusicInfo.ID = this.ID;
+                    currMusicInfo.PositionMs = -1; // Set default value for PosMs so we can fallback to Pos if PosMs doesn't get set.
 
                     if (type.ToUpper() == InfoTypes.Player.ToString().ToUpper())
                     {
@@ -175,7 +178,6 @@ namespace WebNowPlaying
                     }
                     else
                     {
-
                         if (type.ToUpper() == InfoTypes.Title.ToString().ToUpper())
                         {
                             currMusicInfo.Title = info;
@@ -201,22 +203,13 @@ namespace WebNowPlaying
                             //TODO Test this always comes before position, maybe set progress back to 0.0 in here
                             currMusicInfo.Duration = info;
 
-                            try
-                            {
-                                string[] durArr = currMusicInfo.Duration.Split(':');
-
-                                //Duration will always have seconds and minutes
-                                int durSec = Convert.ToInt16(durArr[durArr.Length - 1]);
-                                int durMin = durArr.Length > 1 ? Convert.ToInt16(durArr[durArr.Length - 2]) * 60 : 0;
-                                int durHour = durArr.Length > 2 ? Convert.ToInt16(durArr[durArr.Length - 3]) * 60 * 60 : 0;
-
-
-                                currMusicInfo.DurationSec = durHour + durMin + durSec;
+                            try {
+                                currMusicInfo.DurationSec = getMsFromTimeStamp(info) / 1000;
                                 currMusicInfo.Progress = 0;
                             }
                             catch (Exception e)
                             {
-                                API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting duration into integer");
+                                API.Log(API.LogType.Error, $"WebNowPlaying.dll - Error converting duration into seconds ({info})");
                                 API.Log(API.LogType.Debug, e.ToString());
                             }
                         }
@@ -224,35 +217,33 @@ namespace WebNowPlaying
                         {
                             currMusicInfo.Position = info;
 
-                            try
-                            {
-                                string[] posArr = currMusicInfo.Position.Split(':');
-
-                                //Duration will always have seconds and minutes
-                                int posSec = Convert.ToInt16(posArr[posArr.Length - 1]);
-                                int posMin = posArr.Length > 1 ? Convert.ToInt16(posArr[posArr.Length - 2]) * 60 : 0;
-                                int posHour = posArr.Length > 2 ? Convert.ToInt16(posArr[posArr.Length - 3]) * 60 * 60 : 0;
-
-
-                                currMusicInfo.PositionSec = posHour + posMin + posSec;
-
+                            try {
+                                currMusicInfo.PositionSec = getMsFromTimeStamp(info) / 1000;
                             }
                             catch (Exception e)
                             {
-                                API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting position into integer");
+                                API.Log(API.LogType.Error, $"WebNowPlaying.dll - Error converting position into seconds ({info})");
                                 API.Log(API.LogType.Debug, e.ToString());
                             }
 
+                            currMusicInfo.Progress = currMusicInfo.DurationSec > 0
+                                ? (double) currMusicInfo.PositionSec / currMusicInfo.DurationSec * 100.0
+                                : 100;
+                        }
+                        else if (type.ToUpper() == InfoTypes.PositionMs.ToString().ToUpper()) {
+                            currMusicInfo.Position = info;
 
-                            if (currMusicInfo.DurationSec > 0)
-                            {
-                                currMusicInfo.Progress = (double)currMusicInfo.PositionSec / currMusicInfo.DurationSec * 100.0;
-                            }
-                            else
-                            {
-                                currMusicInfo.Progress = 100;
+                            try {
+                                currMusicInfo.PositionMs = getMsFromTimeStamp(info);
+                                currMusicInfo.PositionSec = currMusicInfo.PositionMs / 1000;
+                            } catch (Exception e) {
+                                API.Log(API.LogType.Error, $"WebNowPlaying.dll - Error converting position into milliseconds ({info})");
+                                API.Log(API.LogType.Debug, e.ToString());
                             }
 
+                            currMusicInfo.Progress = currMusicInfo.DurationSec > 0
+                                ? (double) currMusicInfo.PositionMs / (currMusicInfo.DurationSec * 1000) * 100
+                                : 100;
                         }
                         else if (type.ToUpper() == InfoTypes.State.ToString().ToUpper())
                         {
@@ -262,7 +253,7 @@ namespace WebNowPlaying
                             }
                             catch (Exception e)
                             {
-                                API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting state to integer, state was:" + info);
+                                API.Log(API.LogType.Error, "WebNowPlaying.dll - Error converting state to integer, state was:" + info);
                                 API.Log(API.LogType.Debug, e.ToString());
                             }
                         }
@@ -275,7 +266,7 @@ namespace WebNowPlaying
                             }
                             catch (Exception e)
                             {
-                                API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting volume to integer, volume was:" + info);
+                                API.Log(API.LogType.Error, "WebNowPlaying.dll - Error converting volume to integer, volume was:" + info);
                                 API.Log(API.LogType.Debug, e.ToString());
                             }
                         }
@@ -287,7 +278,7 @@ namespace WebNowPlaying
                             }
                             catch (Exception e)
                             {
-                                API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting rating to integer, rating was:" + info);
+                                API.Log(API.LogType.Error, "WebNowPlaying.dll - Error converting rating to integer, rating was:" + info);
                                 API.Log(API.LogType.Debug, e.ToString());
                             }
                         }
@@ -299,7 +290,7 @@ namespace WebNowPlaying
                             }
                             catch (Exception e)
                             {
-                                API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting repeat state to integer, repeat state was:" + info);
+                                API.Log(API.LogType.Error, "WebNowPlaying.dll - Error converting repeat state to integer, repeat state was:" + info);
                                 API.Log(API.LogType.Debug, e.ToString());
                             }
                         }
@@ -311,7 +302,7 @@ namespace WebNowPlaying
                             }
                             catch (Exception e)
                             {
-                                API.Log(API.LogType.Error, "WebNowPlaing.dll - Error converting shuffle state to integer, shuffle state was:" + info);
+                                API.Log(API.LogType.Error, "WebNowPlaying.dll - Error converting shuffle state to integer, shuffle state was:" + info);
                                 API.Log(API.LogType.Debug, e.ToString());
                             }
                         }
@@ -336,7 +327,6 @@ namespace WebNowPlaying
                             API.Log(API.LogType.Debug, "Web Error:" + info);
                         }
 
-
                         if (type.ToUpper() != InfoTypes.Position.ToString().ToUpper() && currMusicInfo.Title != "")
                         {
                             updateDisplayedInfo();
@@ -350,6 +340,24 @@ namespace WebNowPlaying
                 }
                 //System.Diagnostics.Debug.WriteLine(arg.Data);
                 //API.Log(API.LogType.Debug, arg.Data);
+            }
+
+            /// <summary>
+            /// Get the total number of milliseconds of a timestamp
+            /// </summary>
+            /// <param name="timeStamp">The Timestamp (formatted as: hh:mm:ss.fff)</param>
+            /// <returns>Total number of milliseconds</returns>
+            private int getMsFromTimeStamp(string timeStamp) {
+                if (timeStamp.Count(c => c == ':') == 1) {
+                    // We only have mm:ss(.fff). TimeSpan.Parse() will assume this is hh:mm, so we have to prepend 00 as the hh value to the string.
+                    timeStamp = $"00:{timeStamp}";
+                }
+                
+                // Parse the string into a timespan object
+                TimeSpan time = TimeSpan.Parse(timeStamp);
+                double toReturn = time.TotalMilliseconds;
+                API.Log(API.LogType.Debug, $"Converted {timeStamp} into {toReturn}ms ({time:g})");
+                return (int) toReturn;
             }
 
             protected override void OnOpen()
@@ -795,6 +803,10 @@ namespace WebNowPlaying
                         return displayedMusicInfo.Progress;
                     case InfoTypes.Position:
                         return displayedMusicInfo.PositionSec;
+                    case InfoTypes.PositionMs:
+                        return displayedMusicInfo.PositionMs == -1
+                            ? displayedMusicInfo.PositionSec * 1000
+                            : displayedMusicInfo.PositionMs;
                     case InfoTypes.Duration:
                         return displayedMusicInfo.DurationSec;
                 }
