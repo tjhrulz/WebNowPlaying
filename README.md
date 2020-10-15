@@ -3,8 +3,6 @@ A plugin for Rainmeter that when paired with a browser extension allows retrieva
 Included in this repo is an example skin that shows how to use every measure and bang.  
 Source code for the browser extension can be found [here](https://github.com/tjhrulz/WebNowPlaying-BrowserExtension)
 
-#### If you would like to support this plugin and other plugins I make please check out my [patreon](https://www.patreon.com/tjhrulz)
-
 ## Extension links:
 [Chrome Web Store](https://chrome.google.com/webstore/detail/webnowplaying-companion/jfakgfcdgpghbbefmdfjkbdlibjgnbli)  
 [Firefox Addons Store](https://addons.mozilla.org/en-US/firefox/addon/webnowplaying-companion/)  
@@ -12,26 +10,13 @@ Source code for the browser extension can be found [here](https://github.com/tjh
 **Note:** While using Firefox you will need to go to the about:config page in Firefox and set network.websocket.allowInsecureFromHTTPS to true until I can look into using a self signed SSL Certifcate or have the funds to purchase one. 
 
 ### Current state:
-A rewrite of the companion plugin is in the works. Before that goes live a WebNowPlaying plugin update will be posted.  
-
-- Standard media information (title, artist, album, cover, position, etc.)
-- Standard media controls (play, skip, shuffle, volume, etc.)
-- Rating support (thumbs up/thumbs down)
-- Automatic switching between different web players based on last sent info and which are currently playing  
-
-### List of supported sites:
-- Youtube (Both new and old layouts)
-- Twitch
-- Soundcloud
-- Google Play Music
-- Amazon Music
-- Pandora
-- Spotify
-- Tidal
+Fully functional 
 
 ### Future additions: (See extension source code for web side addition)
 - Improve autoswitcher
 - Storing image in temp when no location is declared instead of in your Rainmeter directory
+- Avoid redownloading image if it is the same as the last image (Or some sort of image caching)
+- Using secure websockets for everything
 
 #### If you would like you can donate to support the plugin [here](https://www.paypal.me/tjhrulz)
 
