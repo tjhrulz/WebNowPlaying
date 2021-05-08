@@ -32,6 +32,7 @@ namespace WebNowPlaying
                 Album = "";
                 Cover = "";
                 CoverWebAddress = "";
+                CoverWebAddressInternal = "";
                 CoverByteArr = new byte[0];
                 Duration = "0:00";
                 DurationSec = 0;
@@ -75,7 +76,11 @@ namespace WebNowPlaying
             public string Artist { get; set; }
             public string Album { get; set; }
             public string Cover { get; set; }
+            //Updated when album art is downloaded so a skin can do an on change
             public string CoverWebAddress { get; set; }
+            //Updated when a thread is spawned to download the artwork, this is not exposed to rainmeter
+            public string CoverWebAddressInternal { get; set; }
+
             public byte[] CoverByteArr { get; set; }
             public string Duration { get; set; }
             public int DurationSec { get; set; }
@@ -190,8 +195,9 @@ namespace WebNowPlaying
                         }
                         else if (type.ToUpper() == InfoTypes.Cover.ToString().ToUpper())
                         {
-                            if (info.Length > 0)
+                            if (info.Length > 0 && !info.Equals(currMusicInfo.CoverWebAddressInternal))
                             {
+                                currMusicInfo.CoverWebAddressInternal = info;
                                 Thread imageDownload = new Thread(() => GetImageFromUrl(this.ID, info));
                                 imageDownload.Start();
                             }
