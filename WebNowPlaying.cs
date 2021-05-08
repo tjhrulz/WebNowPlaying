@@ -355,7 +355,11 @@ namespace WebNowPlaying
             protected override void OnOpen()
             {
                 base.OnOpen();
-                
+
+                System.Reflection.Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                System.Diagnostics.FileVersionInfo fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
+                SendMessage("Version:" + fvi.FileVersion);
+
                 musicInfo.GetOrAdd(this.ID, new MusicInfo());
             }
             protected override void OnClose(CloseEventArgs e)
