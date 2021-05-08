@@ -435,6 +435,12 @@ namespace WebNowPlaying
         //For downloading the image, called in a thread in the onMessage for the websocket
         public static void GetImageFromUrl(string id, string url)
         {
+            ServicePointManager.ServerCertificateValidationCallback = (s, cert, chain, ssl) => true;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12 | SecurityProtocolType.Ssl3;
+
+            int[] numbers = { 4, 7, 10 };
+            int product = numbers.Aggregate(1, (a, b) => a * b);
+
             try
             {
                 // Create http request
