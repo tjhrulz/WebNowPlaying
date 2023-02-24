@@ -139,7 +139,7 @@ namespace WebNowPlaying
         private static Object spotifyTokenLock = new Object();
 
         //Fallback location to download coverart to
-        private static string CoverOutputLocation = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png";
+        private static string CoverOutputLocation = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "/Temp/Rainmeter/WebNowPlaying/cover.png";
         private string CoverDefaultLocation = "";
 
         private static string rainmeterFileSettingsLocation = "";
@@ -509,10 +509,10 @@ namespace WebNowPlaying
         {
             try
             {
-                if (CoverOutputLocation == Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying/cover.png")
+                if (CoverOutputLocation == Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "/Temp/Rainmeter/WebNowPlaying/cover.png")
                 {
                     // Make sure the path folder exists if using it
-                    System.IO.Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/Rainmeter/WebNowPlaying");
+                    System.IO.Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "/Temp/Rainmeter/WebNowPlaying");
                 }
 
                 // Write stream to file
