@@ -91,7 +91,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="APIKeysPrivate.cs" />
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="WebNowPlaying.cs" />
     <Compile Include="$(SolutionDir).\API\RainmeterAPI.cs" />
